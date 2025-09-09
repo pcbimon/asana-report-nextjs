@@ -6,6 +6,14 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { Assignee, Section, Task, Subtask, AsanaReport } from '../models/asanaReport';
 
+// Progress tracking interface
+export interface LoadingProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  status: string;
+}
+
 // Types for Asana API responses
 interface AsanaSection {
   gid: string;
@@ -51,12 +59,18 @@ export class AsanaApiClient {
   private baseUrl: string;
   private token: string;
   private projectId: string;
-  private rateLimitDelay: number = 1000; // 1 second delay between requests
+  private rateLimitDelay: number;
+  private progressCallback?: (progress: LoadingProgress) => void;
 
-  constructor() {
+  constructor(progressCallback?: (progress: LoadingProgress) => void) {
     this.baseUrl = process.env.NEXT_PUBLIC_ASANA_BASE_URL || 'https://app.asana.com/api/1.0';
     this.token = process.env.NEXT_PUBLIC_ASANA_TOKEN || '';
     this.projectId = process.env.NEXT_PUBLIC_ASANA_PROJECT_ID || '';
+    this.progressCallback = progressCallback;
+
+    // Calculate rate limit delay from environment variable
+    const rateLimit = parseInt(process.env.RATE_LIMIT || '150', 10); // requests per minute
+    this.rateLimitDelay = Math.ceil(60000 / rateLimit); // Convert to milliseconds between requests
 
     if (!this.token || !this.projectId) {
       throw new Error('Missing required environment variables: NEXT_PUBLIC_ASANA_TOKEN and NEXT_PUBLIC_ASANA_PROJECT_ID');
@@ -86,6 +100,21 @@ export class AsanaApiClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  /**
+   * Update progress and notify callback
+   */
+  private updateProgress(current: number, total: number, status: string): void {
+    if (this.progressCallback) {
+      const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+      this.progressCallback({
+        current,
+        total,
+        percentage,
+        status
+      });
+    }
   }
 
   /**
@@ -215,30 +244,68 @@ export class AsanaApiClient {
       console.log('Starting complete report fetch...');
       
       // Step 1: Fetch all sections
+      this.updateProgress(0, 100, 'Loading sections...');
       const sections = await this.fetchSections();
       
-      // Step 2: Fetch tasks for each section
+      // Step 2: Count total tasks to estimate progress
+      this.updateProgress(10, 100, 'Counting tasks...');
+      let totalTasks = 0;
+      const taskCounts: number[] = [];
+      
       for (const section of sections) {
         const tasks = await this.fetchTasksInSection(section.gid);
+        taskCounts.push(tasks.length);
+        totalTasks += tasks.length;
+      }
+      
+      // Estimate total operations: sections + tasks + subtasks (estimated)
+      // We'll update this as we discover actual subtask counts
+      let totalOperations = sections.length + totalTasks;
+      let completedOperations = sections.length; // Sections already loaded
+      
+      this.updateProgress(completedOperations, totalOperations, `Loading ${totalTasks} tasks...`);
+      
+      // Step 3: Fetch tasks and subtasks for each section
+      for (let i = 0; i < sections.length; i++) {
+        const section = sections[i];
+        const tasks = await this.fetchTasksInSection(section.gid);
         section.tasks = tasks;
+        completedOperations++;
         
-        // Step 3: Fetch subtasks for each task
-        for (const task of tasks) {
+        this.updateProgress(completedOperations, totalOperations, 
+          `Loading tasks in ${section.name}...`);
+        
+        // Step 4: Fetch subtasks for each task
+        for (let j = 0; j < tasks.length; j++) {
+          const task = tasks[j];
           const subtasks = await this.fetchSubtasks(task.gid);
           task.subtasks = subtasks;
+          completedOperations++;
+          
+          // Update total operations if we discovered more subtasks than expected
+          if (subtasks.length > 0 && completedOperations < totalOperations) {
+            totalOperations += subtasks.length * 0.1; // Small weight for subtasks
+          }
+          
+          this.updateProgress(completedOperations, totalOperations, 
+            `Loading subtasks for ${task.name}...`);
         }
       }
 
       const report = new AsanaReport(sections);
+      
+      // Final progress update
+      this.updateProgress(100, 100, 'Report loaded successfully!');
+      
       console.log('Report fetch completed successfully');
       
       // Log summary
-      const totalTasks = sections.reduce((sum, section) => sum + section.tasks.length, 0);
+      const totalTasksActual = sections.reduce((sum, section) => sum + section.tasks.length, 0);
       const totalSubtasks = sections.reduce((sum, section) => 
         sum + section.tasks.reduce((taskSum, task) => taskSum + task.subtasks.length, 0), 0
       );
       
-      console.log(`Report summary: ${sections.length} sections, ${totalTasks} tasks, ${totalSubtasks} subtasks`);
+      console.log(`Report summary: ${sections.length} sections, ${totalTasksActual} tasks, ${totalSubtasks} subtasks`);
       
       return report;
     } catch (error) {
@@ -268,9 +335,9 @@ let apiClientInstance: AsanaApiClient | null = null;
 /**
  * Get singleton instance of AsanaApiClient
  */
-export function getAsanaApiClient(): AsanaApiClient {
-  if (!apiClientInstance) {
-    apiClientInstance = new AsanaApiClient();
+export function getAsanaApiClient(progressCallback?: (progress: LoadingProgress) => void): AsanaApiClient {
+  if (!apiClientInstance || progressCallback) {
+    apiClientInstance = new AsanaApiClient(progressCallback);
   }
   return apiClientInstance;
 }
@@ -278,8 +345,8 @@ export function getAsanaApiClient(): AsanaApiClient {
 /**
  * Hook for use in React components
  */
-export function useAsanaApi() {
-  const client = getAsanaApiClient();
+export function useAsanaApi(progressCallback?: (progress: LoadingProgress) => void) {
+  const client = getAsanaApiClient(progressCallback);
   
   return {
     fetchCompleteReport: () => client.fetchCompleteReport(),

@@ -23,6 +23,7 @@ export default function DashboardPage() {
     isLoading,
     isRefreshing,
     error,
+    loadingProgress,
     refreshData,
     selectAssignee
   } = useAsanaData();
@@ -84,7 +85,7 @@ export default function DashboardPage() {
       <Header
         assignee={selectedAssignee || undefined}
         onRefresh={refreshData}
-        isLoading={isRefreshing}
+        isLoading={isRefreshing || !!loadingProgress}
       />
 
       {/* Main Content */}
@@ -191,29 +192,66 @@ export default function DashboardPage() {
         ) : null}
 
         {/* Loading State */}
-        {isLoading && (
+        {(isLoading || loadingProgress) && (
           <div className="space-y-6">
-            {/* KPI Cards Skeleton */}
-            <KpiCards isLoading={true} />
-            
-            {/* Charts Skeleton */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="lg:col-span-2">
-                <WeeklySummaryChart weeklyData={[]} isLoading={true} />
+            {/* Loading Progress */}
+            {loadingProgress && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Loading Data</h3>
+                    <p className="text-sm text-gray-600 mt-1">{loadingProgress.status}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-blue-600">{loadingProgress.percentage}%</div>
+                    <div className="text-xs text-gray-500">
+                      {loadingProgress.current} / {loadingProgress.total}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div 
+                    className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${loadingProgress.percentage}%` }}
+                  ></div>
+                </div>
+                
+                {/* Loading Animation */}
+                <div className="flex items-center justify-center mt-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-sm text-gray-600">Please wait...</span>
+                </div>
               </div>
-            </div>
+            )}
             
-            <DistributionPieCharts 
-              projectDistribution={[]} 
-              statusDistribution={[]} 
-              isLoading={true} 
-            />
-            
-            <CurrentTasksTable 
-              tasks={[]} 
-              subtasks={[]} 
-              isLoading={true} 
-            />
+            {/* Skeleton Loaders */}
+            {!loadingProgress && (
+              <>
+                {/* KPI Cards Skeleton */}
+                <KpiCards isLoading={true} />
+                
+                {/* Charts Skeleton */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="lg:col-span-2">
+                    <WeeklySummaryChart weeklyData={[]} isLoading={true} />
+                  </div>
+                </div>
+                
+                <DistributionPieCharts 
+                  projectDistribution={[]} 
+                  statusDistribution={[]} 
+                  isLoading={true} 
+                />
+                
+                <CurrentTasksTable 
+                  tasks={[]} 
+                  subtasks={[]} 
+                  isLoading={true} 
+                />
+              </>
+            )}
           </div>
         )}
       </main>
