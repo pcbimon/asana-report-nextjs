@@ -67,11 +67,10 @@ export class AsanaApiClient {
   private rateLimitDelay: number;
   private progressCallback?: (progress: LoadingProgress) => void;
 
-  constructor(progressCallback?: (progress: LoadingProgress) => void) {
+  constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_ASANA_BASE_URL || 'https://app.asana.com/api/1.0';
     this.token = process.env.NEXT_PUBLIC_ASANA_TOKEN || '';
     this.projectId = process.env.NEXT_PUBLIC_ASANA_PROJECT_ID || '';
-    this.progressCallback = progressCallback;
 
     // Calculate rate limit delay from environment variable
     const rateLimit = parseInt(process.env.RATE_LIMIT || '150', 10); // requests per minute
@@ -105,6 +104,13 @@ export class AsanaApiClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  /**
+   * Set progress callback for reporting loading progress
+   */
+  setProgressCallback(callback?: (progress: LoadingProgress) => void): void {
+    this.progressCallback = callback;
   }
 
   /**
@@ -422,9 +428,9 @@ let apiClientInstance: AsanaApiClient | null = null;
 /**
  * Get singleton instance of AsanaApiClient
  */
-export function getAsanaApiClient(progressCallback?: (progress: LoadingProgress) => void): AsanaApiClient {
-  if (!apiClientInstance || progressCallback) {
-    apiClientInstance = new AsanaApiClient(progressCallback);
+export function getAsanaApiClient(): AsanaApiClient {
+  if (!apiClientInstance) {
+    apiClientInstance = new AsanaApiClient();
   }
   return apiClientInstance;
 }
@@ -433,7 +439,12 @@ export function getAsanaApiClient(progressCallback?: (progress: LoadingProgress)
  * Hook for use in React components
  */
 export function useAsanaApi(progressCallback?: (progress: LoadingProgress) => void) {
-  const client = getAsanaApiClient(progressCallback);
+  const client = getAsanaApiClient();
+  
+  // Set progress callback when it changes
+  if (progressCallback) {
+    client.setProgressCallback(progressCallback);
+  }
   
   return {
     fetchCompleteReport: () => client.fetchCompleteReport(),

@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AsanaReport, Assignee } from '../../models/asanaReport';
 import { AssigneeStats, processAssigneeStats, calculateTeamAverages } from '../dataProcessor';
 import { useReportCache } from '../storage';
-import { useAsanaApi, LoadingProgress } from '../asanaApi';
+import { useAsanaApi, LoadingProgress, getAsanaApiClient } from '../asanaApi';
 
 export interface UseAsanaDataReturn {
   // Data
@@ -45,7 +45,16 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     setLoadingProgress(progress);
   }, []);
   
-  const api = useAsanaApi(handleProgress);
+  const api = useAsanaApi();
+  
+  // Set progress callback when it changes
+  useMemo(() => {
+    if (api && handleProgress) {
+      // Get the client and set the progress callback
+      const client = getAsanaApiClient();
+      client.setProgressCallback(handleProgress);
+    }
+  }, [api, handleProgress]);
 
   // Derived data
   const assignees = useMemo(() => report?.getAllAssignees() || [], [report]);
