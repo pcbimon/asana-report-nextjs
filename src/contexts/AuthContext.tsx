@@ -73,14 +73,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: { message: 'Supabase not configured' } };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
     // Wait a bit for the session to be established
     if (!error) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      return new Promise(resolve => {
+        setTimeout(() => resolve({ error: null }), 500);
+      });
     }
     
     return { error };

@@ -24,13 +24,14 @@ export default function LoginPage() {
 
     try {
       const { error } = await signIn(email, password);
-      
+      console.log(error)
       if (error) {
         setError(error.message);
         setIsLoading(false);
       } else {
-        // Success - let middleware handle redirect
-        // Don't redirect manually to avoid conflicts with middleware
+        setIsLoading(false);
+        // redirect to dashboard
+        window.location.href = '/dashboard';
       }
     } catch {
       setError('An unexpected error occurred');
