@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function LoginPage() {
@@ -13,14 +13,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { signIn, user } = useAuth();
+  const { signIn } = useAuth();
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (user && !isLoading) {
-      window.location.href = '/dashboard';
-    }
-  }, [user, isLoading]);
+  // Note: Redirect is handled by middleware, not client-side
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,9 +29,8 @@ export default function LoginPage() {
         setError(error.message);
         setIsLoading(false);
       } else {
-        // Wait for auth state to update before redirecting
-        await new Promise(resolve => setTimeout(resolve, 500));
-        window.location.href = '/dashboard'; // Use window.location instead of router for hard redirect
+        // Success - let middleware handle redirect
+        // Don't redirect manually to avoid conflicts with middleware
       }
     } catch {
       setError('An unexpected error occurred');
