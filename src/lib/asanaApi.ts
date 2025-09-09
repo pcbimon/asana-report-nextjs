@@ -56,6 +56,13 @@ interface AsanaTaskCounts {
   num_tasks: number;
 }
 
+interface AsanaUser {
+  gid: string;
+  name: string;
+  email?: string;
+  resource_type: string;
+}
+
 interface AsanaApiResponse<T> {
   data: T;
 }
@@ -67,6 +74,7 @@ export class AsanaApiClient {
   private projectId: string;
   private rateLimitDelay: number;
   private progressCallback?: (progress: LoadingProgress) => void;
+  private teamUsers: Assignee[] = []; // Cache team users
 
   constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_ASANA_BASE_URL || 'https://app.asana.com/api/1.0';
@@ -134,6 +142,40 @@ export class AsanaApiClient {
    */
   private async delay(): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, this.rateLimitDelay));
+  }
+
+  /**
+   * Fetch team users (assignees)
+   */
+  async fetchTeamUsers(): Promise<Assignee[]> {
+    try {
+      const teamId = process.env.NEXT_PUBLIC_TEAM_ID;
+      if (!teamId) {
+        console.warn('NEXT_PUBLIC_TEAM_ID not configured, falling back to task-based assignees');
+        return [];
+      }
+
+      console.log('Fetching team users for team:', teamId);
+      const response: AxiosResponse<AsanaApiResponse<AsanaUser[]>> = await this.client.get(
+        `/teams/${teamId}/users`,
+        {
+          params: {
+            opt_fields: 'name,email'
+          }
+        }
+      );
+
+      const assignees = response.data.data.map(userData => 
+        new Assignee(userData.gid, userData.name, userData.email)
+      );
+
+      console.log(`Fetched ${assignees.length} team users`);
+      return assignees;
+    } catch (error) {
+      console.error('Error fetching team users:', error);
+      console.warn('Falling back to task-based assignees');
+      return [];
+    }
   }
 
   /**
@@ -298,28 +340,32 @@ export class AsanaApiClient {
     try {
       console.log('Starting complete report fetch...');
       
-      // Step 1: Get exact task count from project API
-      this.updateProgress(0, 100, 'Getting project task count...');
+      // Step 1: Fetch team users first for efficiency
+      this.updateProgress(0, 100, 'Loading team users...');
+      this.teamUsers = await this.fetchTeamUsers();
+      
+      // Step 2: Get exact task count from project API
+      this.updateProgress(5, 100, 'Getting project task count...');
       const totalTasksInProject = await this.fetchProjectTaskCounts();
       
-      // Step 2: Fetch all sections
-      this.updateProgress(5, 100, 'Loading sections...');
+      // Step 3: Fetch all sections
+      this.updateProgress(10, 100, 'Loading sections...');
       const sections = await this.fetchSections();
       
-      // Step 3: Calculate progress based on actual task count
-      // Operations: sections (already done) + tasks + subtask count checks + subtasks
-      const sectionsWeight = 5; // Already completed
+      // Step 4: Calculate progress based on actual task count
+      // Operations: team users (done) + task count (done) + sections (done) + tasks + subtask count checks + subtasks
+      const initialWeight = 10; // Already completed
       const tasksWeight = 30; // Loading tasks
       const subtaskCountWeight = 10; // Getting subtask counts
-      const subtasksWeight = 55; // Loading actual subtasks
+      const subtasksWeight = 50; // Loading actual subtasks
       
-      let currentProgress = sectionsWeight;
+      let currentProgress = initialWeight;
       this.updateProgress(currentProgress, 100, `Loading ${totalTasksInProject} tasks across ${sections.length} sections...`);
       
       let totalTasksProcessed = 0;
       let totalSubtasksCount = 0;
       
-      // Step 4: Fetch tasks for each section
+      // Step 5: Fetch tasks for each section
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i];
         const tasks = await this.fetchTasksInSection(section.gid);
@@ -330,14 +376,14 @@ export class AsanaApiClient {
         const taskProgress = totalTasksInProject > 0 ? 
           (totalTasksProcessed / totalTasksInProject) * tasksWeight : 
           tasksWeight;
-        currentProgress = sectionsWeight + taskProgress;
+        currentProgress = initialWeight + taskProgress;
         
         this.updateProgress(currentProgress, 100, 
           `Loading tasks in '${section.name}' (${totalTasksProcessed}/${totalTasksInProject})...`);
       }
       
-      // Step 5: Get subtask counts for accurate progress calculation
-      currentProgress = sectionsWeight + tasksWeight;
+      // Step 6: Get subtask counts for accurate progress calculation
+      currentProgress = initialWeight + tasksWeight;
       this.updateProgress(currentProgress, 100, 'Calculating subtask counts...');
       
       const allTasks = sections.flatMap(section => section.tasks);
@@ -353,7 +399,7 @@ export class AsanaApiClient {
         const subtaskCountProgress = allTasks.length > 0 ? 
           (subtaskCountsProcessed / allTasks.length) * subtaskCountWeight : 
           subtaskCountWeight;
-        currentProgress = sectionsWeight + tasksWeight + subtaskCountProgress;
+        currentProgress = initialWeight + tasksWeight + subtaskCountProgress;
         
         if (subtaskCountsProcessed % 5 === 0 || subtaskCountsProcessed === allTasks.length) {
           this.updateProgress(currentProgress, 100, 
@@ -361,8 +407,8 @@ export class AsanaApiClient {
         }
       }
       
-      // Step 6: Fetch actual subtasks
-      currentProgress = sectionsWeight + tasksWeight + subtaskCountWeight;
+      // Step 7: Fetch actual subtasks
+      currentProgress = initialWeight + tasksWeight + subtaskCountWeight;
       this.updateProgress(currentProgress, 100, 
         `Loading ${totalSubtasksCount} subtasks for ${allTasks.length} tasks...`);
       
@@ -378,14 +424,14 @@ export class AsanaApiClient {
           const subtaskProgress = totalSubtasksCount > 0 ? 
             (subtasksProcessed / totalSubtasksCount) * subtasksWeight : 
             subtasksWeight / allTasks.length * (allTasks.indexOf(task) + 1);
-          currentProgress = sectionsWeight + tasksWeight + subtaskCountWeight + subtaskProgress;
+          currentProgress = initialWeight + tasksWeight + subtaskCountWeight + subtaskProgress;
           
           this.updateProgress(currentProgress, 100, 
             `Loading subtasks for '${task.name}' (${subtasksProcessed}/${totalSubtasksCount})...`);
         }
       }
 
-      const report = new AsanaReport(sections);
+      const report = new AsanaReport(sections, this.teamUsers);
       
       // Final progress update
       this.updateProgress(100, 100, 'Report loaded successfully!');
@@ -398,7 +444,7 @@ export class AsanaApiClient {
         sum + section.tasks.reduce((taskSum, task) => taskSum + task.subtasks.length, 0), 0
       );
       
-      console.log(`Report summary: ${sections.length} sections, ${totalTasksActual} tasks, ${totalSubtasksActual} subtasks`);
+      console.log(`Report summary: ${sections.length} sections, ${totalTasksActual} tasks, ${totalSubtasksActual} subtasks, ${this.teamUsers.length} team users`);
       console.log(`Accuracy: Predicted ${totalTasksInProject} tasks (actual: ${totalTasksActual}), predicted ${totalSubtasksCount} subtasks (actual: ${totalSubtasksActual})`);
       
       return report;
@@ -445,6 +491,7 @@ export function useAsanaApi() {
     const client = getAsanaApiClient();
     return {
       fetchCompleteReport: () => client.fetchCompleteReport(),
+      fetchTeamUsers: () => client.fetchTeamUsers(),
       testConnection: () => client.testConnection(),
     };
   }, []); // Empty dependency array since the client is a singleton

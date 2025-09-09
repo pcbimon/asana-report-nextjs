@@ -179,17 +179,26 @@ export class Section {
 
 export class AsanaReport {
   sections: Section[];
+  teamUsers: Assignee[]; // Direct team users from API
   lastUpdated: string;
 
-  constructor(sections: Section[] = []) {
+  constructor(sections: Section[] = [], teamUsers: Assignee[] = []) {
     this.sections = sections;
+    this.teamUsers = teamUsers;
     this.lastUpdated = new Date().toISOString();
   }
 
   /**
    * Get all unique assignees from the report
+   * Now uses direct team users API instead of deriving from tasks for better performance
    */
   getAllAssignees(): Assignee[] {
+    // If we have team users from API, use them first
+    if (this.teamUsers.length > 0) {
+      return this.teamUsers;
+    }
+
+    // Fallback to task-based assignees if team users API is not available
     const assigneeMap = new Map<string, Assignee>();
 
     this.sections.forEach(section => {
