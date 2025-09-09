@@ -47,14 +47,11 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   
   const api = useAsanaApi();
   
-  // Set progress callback when it changes
-  useMemo(() => {
-    if (api && handleProgress) {
-      // Get the client and set the progress callback
-      const client = getAsanaApiClient();
-      client.setProgressCallback(handleProgress);
-    }
-  }, [api, handleProgress]);
+  // Set progress callback when component mounts (only once)
+  useEffect(() => {
+    const client = getAsanaApiClient();
+    client.setProgressCallback(handleProgress);
+  }, [handleProgress]); // Include handleProgress as dependency since it's stable
 
   // Derived data
   const assignees = useMemo(() => report?.getAllAssignees() || [], [report]);

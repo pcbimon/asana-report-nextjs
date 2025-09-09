@@ -4,6 +4,7 @@
  */
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { useMemo } from 'react';
 import { Assignee, Section, Task, Subtask, AsanaReport } from '../models/asanaReport';
 
 // Progress tracking interface
@@ -438,16 +439,13 @@ export function getAsanaApiClient(): AsanaApiClient {
 /**
  * Hook for use in React components
  */
-export function useAsanaApi(progressCallback?: (progress: LoadingProgress) => void) {
-  const client = getAsanaApiClient();
-  
-  // Set progress callback when it changes
-  if (progressCallback) {
-    client.setProgressCallback(progressCallback);
-  }
-  
-  return {
-    fetchCompleteReport: () => client.fetchCompleteReport(),
-    testConnection: () => client.testConnection(),
-  };
+export function useAsanaApi() {
+  // Return memoized API methods to prevent re-creation on every render
+  return useMemo(() => {
+    const client = getAsanaApiClient();
+    return {
+      fetchCompleteReport: () => client.fetchCompleteReport(),
+      testConnection: () => client.testConnection(),
+    };
+  }, []); // Empty dependency array since the client is a singleton
 }
