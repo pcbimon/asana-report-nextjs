@@ -3,6 +3,7 @@
  * Handles saving, loading, and managing cached data with TTL
  */
 
+import { useCallback, useMemo } from 'react';
 import { AsanaReport, Section, Task, Subtask, Assignee } from '../models/asanaReport';
 
 const STORAGE_KEY = 'asana_report_data';
@@ -237,19 +238,19 @@ function reportFromJSON(data: any): AsanaReport {
  * React hook for managing report cache
  */
 export function useReportCache() {
-  const save = (report: AsanaReport) => saveReport(report);
-  const load = (ttlHours?: number) => loadReport(ttlHours);
-  const clear = () => clearCache();
-  const isFresh = (ttlHours?: number) => isCacheFresh(ttlHours);
-  const getInfo = () => getCacheInfo();
+  const save = useCallback((report: AsanaReport) => saveReport(report), []);
+  const load = useCallback((ttlHours?: number) => loadReport(ttlHours), []);
+  const clear = useCallback(() => clearCache(), []);
+  const isFresh = useCallback((ttlHours?: number) => isCacheFresh(ttlHours), []);
+  const getInfo = useCallback(() => getCacheInfo(), []);
 
-  return {
+  return useMemo(() => ({
     save,
     load,
     clear,
     isFresh,
     getInfo
-  };
+  }), [save, load, clear, isFresh, getInfo]);
 }
 
 /**

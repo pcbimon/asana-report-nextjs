@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AsanaReport, Assignee } from '../../models/asanaReport';
 import { AssigneeStats, processAssigneeStats, calculateTeamAverages } from '../dataProcessor';
 import { useReportCache } from '../storage';
-import { useAsanaApi } from '../asanaApi';
+import { useAsanaApi, LoadingProgress, getAsanaApiClient } from '../asanaApi';
 
 export interface UseAsanaDataReturn {
   // Data
@@ -22,6 +22,7 @@ export interface UseAsanaDataReturn {
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
+  loadingProgress: LoadingProgress | null;
   
   // Actions
   fetchData: () => Promise<void>;
@@ -35,9 +36,22 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
 
   const cache = useReportCache();
+  
+  // Progress callback for API calls
+  const handleProgress = useCallback((progress: LoadingProgress) => {
+    setLoadingProgress(progress);
+  }, []);
+  
   const api = useAsanaApi();
+  
+  // Set progress callback when component mounts (only once)
+  useEffect(() => {
+    const client = getAsanaApiClient();
+    client.setProgressCallback(handleProgress);
+  }, [handleProgress]); // Include handleProgress as dependency since it's stable
 
   // Derived data
   const assignees = useMemo(() => report?.getAllAssignees() || [], [report]);
@@ -54,15 +68,21 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   const fetchFromApi = useCallback(async () => {
     try {
       console.log('Fetching fresh data from Asana API...');
+      setLoadingProgress({ current: 0, total: 100, percentage: 0, status: 'Starting...' });
+      
       const freshReport = await api.fetchCompleteReport();
       
       // Save to cache
       cache.save(freshReport);
       setReport(freshReport);
       
+      // Clear progress when done
+      setLoadingProgress(null);
+      
       console.log('Data fetched and cached successfully');
     } catch (err) {
       console.error('Error fetching from API:', err);
+      setLoadingProgress(null);
       throw err;
     }
   }, [api, cache]);
@@ -71,6 +91,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     try {
       setError(null);
       setIsLoading(true);
+      setLoadingProgress(null);
 
       // Try to load from cache first
       const cachedReport = cache.load();
@@ -85,6 +106,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     } catch (err) {
       console.error('Error loading data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
+      setLoadingProgress(null);
     } finally {
       setIsLoading(false);
     }
@@ -106,6 +128,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     try {
       setError(null);
       setIsRefreshing(true);
+      setLoadingProgress(null);
       
       // Clear cache and fetch fresh data
       cache.clear();
@@ -113,6 +136,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     } catch (err) {
       console.error('Error refreshing data:', err);
       setError(err instanceof Error ? err.message : 'Failed to refresh data');
+      setLoadingProgress(null);
     } finally {
       setIsRefreshing(false);
     }
@@ -138,6 +162,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     isLoading,
     isRefreshing,
     error,
+    loadingProgress,
     
     // Actions
     fetchData,
