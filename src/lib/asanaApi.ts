@@ -35,6 +35,7 @@ interface AsanaTask {
   due_on?: string;
   priority?: string;
   projects?: Array<{ gid: string; name: string }>;
+  num_subtasks?: number;
 }
 
 interface AsanaSubtask {
@@ -48,6 +49,10 @@ interface AsanaSubtask {
   completed: boolean;
   created_at?: string;
   completed_at?: string;
+}
+
+interface AsanaTaskCounts {
+  num_tasks: number;
 }
 
 interface AsanaApiResponse<T> {
@@ -125,8 +130,51 @@ export class AsanaApiClient {
   }
 
   /**
-   * Fetch all sections in the project
+   * Fetch project task counts
    */
+  async fetchProjectTaskCounts(): Promise<number> {
+    try {
+      console.log('Fetching project task counts for project:', this.projectId);
+      const response: AxiosResponse<AsanaApiResponse<AsanaTaskCounts>> = await this.client.get(
+        `/projects/${this.projectId}/task_counts`,
+        {
+          params: {
+            opt_fields: 'num_tasks'
+          }
+        }
+      );
+
+      const taskCount = response.data.data.num_tasks;
+      console.log(`Project has ${taskCount} total tasks`);
+      return taskCount;
+    } catch (error) {
+      console.error('Error fetching project task counts:', error);
+      // Fall back to 0 if the API call fails
+      return 0;
+    }
+  }
+
+  /**
+   * Fetch task with subtask count
+   */
+  async fetchTaskWithSubtaskCount(taskGid: string): Promise<number> {
+    try {
+      const response: AxiosResponse<AsanaApiResponse<AsanaTask>> = await this.client.get(
+        `/tasks/${taskGid}`,
+        {
+          params: {
+            opt_fields: 'num_subtasks'
+          }
+        }
+      );
+
+      return response.data.data.num_subtasks || 0;
+    } catch (error) {
+      console.error(`Error fetching subtask count for task ${taskGid}:`, error);
+      // Fall back to 0 if the API call fails
+      return 0;
+    }
+  }
   async fetchSections(): Promise<Section[]> {
     try {
       console.log('Fetching sections for project:', this.projectId);
@@ -158,7 +206,7 @@ export class AsanaApiClient {
         `/sections/${sectionGid}/tasks`,
         {
           params: {
-            opt_fields: 'name,assignee.name,assignee.email,completed,completed_at,created_at,due_on,projects.name'
+            opt_fields: 'name,assignee.name,assignee.email,completed,completed_at,created_at,due_on,projects.name,num_subtasks'
           }
         }
       );
@@ -243,52 +291,90 @@ export class AsanaApiClient {
     try {
       console.log('Starting complete report fetch...');
       
-      // Step 1: Fetch all sections
-      this.updateProgress(0, 100, 'Loading sections...');
+      // Step 1: Get exact task count from project API
+      this.updateProgress(0, 100, 'Getting project task count...');
+      const totalTasksInProject = await this.fetchProjectTaskCounts();
+      
+      // Step 2: Fetch all sections
+      this.updateProgress(5, 100, 'Loading sections...');
       const sections = await this.fetchSections();
       
-      // Step 2: Count total tasks to estimate progress
-      this.updateProgress(10, 100, 'Counting tasks...');
-      let totalTasks = 0;
-      const taskCounts: number[] = [];
+      // Step 3: Calculate progress based on actual task count
+      // Operations: sections (already done) + tasks + subtask count checks + subtasks
+      const sectionsWeight = 5; // Already completed
+      const tasksWeight = 30; // Loading tasks
+      const subtaskCountWeight = 10; // Getting subtask counts
+      const subtasksWeight = 55; // Loading actual subtasks
       
-      for (const section of sections) {
-        const tasks = await this.fetchTasksInSection(section.gid);
-        taskCounts.push(tasks.length);
-        totalTasks += tasks.length;
-      }
+      let currentProgress = sectionsWeight;
+      this.updateProgress(currentProgress, 100, `Loading ${totalTasksInProject} tasks across ${sections.length} sections...`);
       
-      // Estimate total operations: sections + tasks + subtasks (estimated)
-      // We'll update this as we discover actual subtask counts
-      let totalOperations = sections.length + totalTasks;
-      let completedOperations = sections.length; // Sections already loaded
+      let totalTasksProcessed = 0;
+      let totalSubtasksCount = 0;
       
-      this.updateProgress(completedOperations, totalOperations, `Loading ${totalTasks} tasks...`);
-      
-      // Step 3: Fetch tasks and subtasks for each section
+      // Step 4: Fetch tasks for each section
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i];
         const tasks = await this.fetchTasksInSection(section.gid);
         section.tasks = tasks;
-        completedOperations++;
+        totalTasksProcessed += tasks.length;
         
-        this.updateProgress(completedOperations, totalOperations, 
-          `Loading tasks in ${section.name}...`);
+        // Update progress for tasks loading
+        const taskProgress = totalTasksInProject > 0 ? 
+          (totalTasksProcessed / totalTasksInProject) * tasksWeight : 
+          tasksWeight;
+        currentProgress = sectionsWeight + taskProgress;
         
-        // Step 4: Fetch subtasks for each task
-        for (let j = 0; j < tasks.length; j++) {
-          const task = tasks[j];
+        this.updateProgress(currentProgress, 100, 
+          `Loading tasks in '${section.name}' (${totalTasksProcessed}/${totalTasksInProject})...`);
+      }
+      
+      // Step 5: Get subtask counts for accurate progress calculation
+      currentProgress = sectionsWeight + tasksWeight;
+      this.updateProgress(currentProgress, 100, 'Calculating subtask counts...');
+      
+      const allTasks = sections.flatMap(section => section.tasks);
+      let subtaskCountsProcessed = 0;
+      
+      // Get subtask counts for all tasks
+      for (const task of allTasks) {
+        const subtaskCount = await this.fetchTaskWithSubtaskCount(task.gid);
+        totalSubtasksCount += subtaskCount;
+        subtaskCountsProcessed++;
+        
+        // Update progress for subtask count checks
+        const subtaskCountProgress = allTasks.length > 0 ? 
+          (subtaskCountsProcessed / allTasks.length) * subtaskCountWeight : 
+          subtaskCountWeight;
+        currentProgress = sectionsWeight + tasksWeight + subtaskCountProgress;
+        
+        if (subtaskCountsProcessed % 5 === 0 || subtaskCountsProcessed === allTasks.length) {
+          this.updateProgress(currentProgress, 100, 
+            `Calculating subtask counts (${subtaskCountsProcessed}/${allTasks.length})...`);
+        }
+      }
+      
+      // Step 6: Fetch actual subtasks
+      currentProgress = sectionsWeight + tasksWeight + subtaskCountWeight;
+      this.updateProgress(currentProgress, 100, 
+        `Loading ${totalSubtasksCount} subtasks for ${allTasks.length} tasks...`);
+      
+      let subtasksProcessed = 0;
+      
+      for (const section of sections) {
+        for (const task of section.tasks) {
           const subtasks = await this.fetchSubtasks(task.gid);
           task.subtasks = subtasks;
-          completedOperations++;
+          subtasksProcessed += subtasks.length;
           
-          // Update total operations if we discovered more subtasks than expected
-          if (subtasks.length > 0 && completedOperations < totalOperations) {
-            totalOperations += subtasks.length * 0.1; // Small weight for subtasks
-          }
+          // Update progress for subtasks loading
+          const subtaskProgress = totalSubtasksCount > 0 ? 
+            (subtasksProcessed / totalSubtasksCount) * subtasksWeight : 
+            subtasksWeight / allTasks.length * (allTasks.indexOf(task) + 1);
+          currentProgress = sectionsWeight + tasksWeight + subtaskCountWeight + subtaskProgress;
           
-          this.updateProgress(completedOperations, totalOperations, 
-            `Loading subtasks for ${task.name}...`);
+          this.updateProgress(currentProgress, 100, 
+            `Loading subtasks for '${task.name}' (${subtasksProcessed}/${totalSubtasksCount})...`);
         }
       }
 
@@ -301,11 +387,12 @@ export class AsanaApiClient {
       
       // Log summary
       const totalTasksActual = sections.reduce((sum, section) => sum + section.tasks.length, 0);
-      const totalSubtasks = sections.reduce((sum, section) => 
+      const totalSubtasksActual = sections.reduce((sum, section) => 
         sum + section.tasks.reduce((taskSum, task) => taskSum + task.subtasks.length, 0), 0
       );
       
-      console.log(`Report summary: ${sections.length} sections, ${totalTasksActual} tasks, ${totalSubtasks} subtasks`);
+      console.log(`Report summary: ${sections.length} sections, ${totalTasksActual} tasks, ${totalSubtasksActual} subtasks`);
+      console.log(`Accuracy: Predicted ${totalTasksInProject} tasks (actual: ${totalTasksActual}), predicted ${totalSubtasksCount} subtasks (actual: ${totalSubtasksActual})`);
       
       return report;
     } catch (error) {
