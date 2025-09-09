@@ -5,7 +5,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function LoginPage() {
@@ -15,14 +14,13 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   
   const { signIn, user } = useAuth();
-  const router = useRouter();
 
   // Redirect if already logged in
   useEffect(() => {
-    if (user) {
-      router.push('/dashboard');
+    if (user && !isLoading) {
+      window.location.href = '/dashboard';
     }
-  }, [user, router]);
+  }, [user, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,12 +32,14 @@ export default function LoginPage() {
       
       if (error) {
         setError(error.message);
+        setIsLoading(false);
       } else {
-        router.push('/dashboard');
+        // Wait for auth state to update before redirecting
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.location.href = '/dashboard'; // Use window.location instead of router for hard redirect
       }
     } catch {
       setError('An unexpected error occurred');
-    } finally {
       setIsLoading(false);
     }
   };

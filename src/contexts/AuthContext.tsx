@@ -77,6 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     });
+    
+    // Wait a bit for the session to be established
+    if (!error) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
     return { error };
   };
 
