@@ -206,12 +206,36 @@ export async function saveUserPreferences(preferences: {
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    // First, verify authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError) {
+      console.error('Authentication error:', authError);
+      throw new Error(`Authentication failed: ${authError.message}`);
+    }
     
     if (!user) {
       throw new Error('User not authenticated');
     }
 
+    console.log('Saving user preferences:', {
+      userId: user.id,
+      preferences
+    });
+
+    // Try to check if table exists first (this will help diagnose table issues)
+    const { error: tableError } = await supabase
+      .from('user_preferences')
+      .select('id')
+      .limit(1);
+
+    if (tableError && tableError.code === 'PGRST116') {
+      // Table doesn't exist
+      console.error('user_preferences table does not exist. Please run the database setup SQL.');
+      throw new Error('Database table missing. Please contact the administrator.');
+    }
+
+    // Now try the upsert operation
     const { error } = await supabase
       .from('user_preferences')
       .upsert({
@@ -223,10 +247,36 @@ export async function saveUserPreferences(preferences: {
       });
 
     if (error) {
-      throw error;
+      console.error('Supabase upsert error:', {
+        error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      
+      // Provide specific error messages based on error codes
+      if (error.code === '42501') {
+        throw new Error('Permission denied. Please check RLS policies.');
+      } else if (error.code === '23505') {
+        throw new Error('Duplicate entry detected.');
+      } else {
+        throw new Error(`Database error: ${error.message || 'Unknown database error'}`);
+      }
     }
+
+    console.log('User preferences saved successfully');
   } catch (error) {
-    console.error('Error saving user preferences:', error);
+    console.error('Error saving user preferences:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      supabaseConfigured: !!supabase,
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name
+    });
+    // Don't rethrow the error to prevent app crashes for non-critical functionality
+    // But we can show a user-friendly message
   }
 }
 
