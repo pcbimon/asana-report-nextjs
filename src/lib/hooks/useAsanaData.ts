@@ -164,19 +164,6 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
 
   const selectAssignee = useCallback(async (assigneeGid: string) => {
     setSelectedAssigneeGid(assigneeGid);
-    
-    // Save preference to Supabase (non-blocking)
-    try {
-      await saveUserPreferences({ selectedAssignee: assigneeGid });
-    } catch (error) {
-      console.error('Error saving user preference:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        assigneeGid
-      });
-      // Note: We don't show an error to the user as this is non-critical functionality
-      // The selection still works, just the preference won't be persisted
-    }
   }, []);
 
   const fetchData = useCallback(async () => {
