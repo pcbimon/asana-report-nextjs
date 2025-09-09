@@ -105,12 +105,12 @@ export default function DashboardPage() {
                   <select
                     value={selectedAssignee?.gid || ''}
                     onChange={(e) => selectAssignee(e.target.value)}
-                    className="block w-64 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="block w-64 text-sm border-2 border-blue-600 text-black rounded-md focus:ring-blue-700 focus:border-blue-700 font-semibold shadow"
                   >
                     <option value="">Select an assignee...</option>
                     {assignees.map(assignee => (
                       <option key={assignee.gid} value={assignee.gid}>
-                        {assignee.name} {assignee.email ? `(${assignee.email})` : ''}
+                        {assignee.name}
                       </option>
                     ))}
                   </select>
