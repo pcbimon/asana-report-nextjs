@@ -6,7 +6,6 @@
 import { AsanaReport, Section, Task, Subtask, Assignee } from '../models/asanaReport';
 
 const STORAGE_KEY = 'asana_report_data';
-const STORAGE_TIMESTAMP_KEY = 'asana_report_timestamp';
 const DEFAULT_TTL_HOURS = 12; // Default cache TTL: 12 hours
 
 interface StoredReport {

@@ -218,7 +218,7 @@ function generateStatusDistribution(tasks: Task[], subtasks: Subtask[]): StatusD
   
   const completed = allItems.filter(item => item.completed).length;
   const overdue = allItems.filter(item => {
-    if ('isOverdue' in item) {
+    if ('isOverdue' in item && typeof item.isOverdue === 'function') {
       return item.isOverdue();
     }
     // For subtasks, check if created more than 7 days ago and not completed
@@ -260,7 +260,6 @@ export function generateCalendarData(
   subtasks: Subtask[],
   monthsToShow: number = 3
 ): CalendarDay[] {
-  const calendarData: CalendarDay[] = [];
   const itemMap = new Map<string, CalendarDay>();
 
   // Initialize calendar days
