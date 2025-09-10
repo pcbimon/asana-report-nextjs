@@ -189,6 +189,60 @@ export class AsanaReport {
   }
 
   /**
+   * Create AsanaReport instance from JSON data
+   */
+  static fromJSON(json: any): AsanaReport {
+    const sections = json.sections?.map((sectionData: any) => {
+      const tasks = sectionData.tasks?.map((taskData: any) => {
+        const assignee = taskData.assignee ? 
+          new Assignee(taskData.assignee.gid, taskData.assignee.name, taskData.assignee.email) : 
+          undefined;
+
+        const subtasks = taskData.subtasks?.map((subtaskData: any) => {
+          const subtaskAssignee = subtaskData.assignee ? 
+            new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
+            undefined;
+
+          return new Subtask(
+            subtaskData.gid,
+            subtaskData.name,
+            subtaskData.completed,
+            subtaskAssignee,
+            subtaskData.created_at,
+            subtaskData.completed_at
+          );
+        }) || [];
+
+        return new Task(
+          taskData.gid,
+          taskData.name,
+          taskData.completed,
+          subtasks,
+          assignee,
+          taskData.completed_at,
+          taskData.created_at,
+          taskData.due_on,
+          taskData.priority,
+          taskData.project
+        );
+      }) || [];
+
+      return new Section(sectionData.gid, sectionData.name, tasks);
+    }) || [];
+
+    const teamUsers = json.teamUsers?.map((userData: any) => 
+      new Assignee(userData.gid, userData.name, userData.email)
+    ) || [];
+
+    const report = new AsanaReport(sections, teamUsers);
+    if (json.lastUpdated) {
+      report.lastUpdated = json.lastUpdated;
+    }
+
+    return report;
+  }
+
+  /**
    * Get all unique assignees from the report
    * Now uses direct team users API instead of deriving from tasks for better performance
    */
