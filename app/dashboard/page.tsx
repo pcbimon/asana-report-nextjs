@@ -11,7 +11,7 @@ import KpiCards from '../../src/components/KpiCards';
 import WeeklySummaryChart from '../../src/components/WeeklySummaryChart';
 import DistributionPieCharts from '../../src/components/DistributionPieCharts';
 import CurrentTasksTable from '../../src/components/CurrentTasksTable';
-import { useAsanaData } from '../../src/lib/hooks/useAsanaData';
+import { useAsanaData } from '../../src/lib/hooks/useAsanaDataApi';
 import { Button } from '../../components/ui/button';
 import { 
   Select, 
