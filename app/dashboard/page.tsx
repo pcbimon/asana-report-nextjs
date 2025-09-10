@@ -148,6 +148,7 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2">
                   <WeeklySummaryChart
                     weeklyData={assigneeStats.weeklyData}
+                    monthlyData={assigneeStats.monthlyData}
                     teamAverage={teamAverages?.averageTasksPerWeek}
                     isLoading={isLoading}
                   />
@@ -244,7 +245,7 @@ export default function DashboardPage() {
                 {/* Charts Skeleton */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="lg:col-span-2">
-                    <WeeklySummaryChart weeklyData={[]} isLoading={true} />
+                    <WeeklySummaryChart weeklyData={[]} monthlyData={[]} isLoading={true} />
                   </div>
                 </div>
                 

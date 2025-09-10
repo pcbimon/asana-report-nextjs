@@ -5,32 +5,62 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { WeeklyTaskData } from '../lib/dataProcessor';
+import { WeeklyTaskData, MonthlyTaskData } from '../lib/dataProcessor';
 import dayjs from 'dayjs';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '../../components/ui/select';
+
+type ViewMode = 'week' | 'month';
 
 interface WeeklySummaryChartProps {
   weeklyData: WeeklyTaskData[];
+  monthlyData: MonthlyTaskData[];
   teamAverage?: number;
   isLoading?: boolean;
 }
 
 export default function WeeklySummaryChart({ 
   weeklyData, 
+  monthlyData,
   teamAverage = 0, 
   isLoading = false 
 }: WeeklySummaryChartProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
+
   if (isLoading) {
     return <WeeklySummaryChartSkeleton />;
   }
 
-  if (!weeklyData || weeklyData.length === 0) {
+  // Select the appropriate data based on view mode
+  const currentData = viewMode === 'week' ? weeklyData : monthlyData;
+  const hasData = currentData && currentData.length > 0;
+
+  if (!hasData) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Weekly Task Summary</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>
+              {viewMode === 'week' ? 'Weekly' : 'Monthly'} Task Summary
+            </CardTitle>
+            <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">Week</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-64 text-gray-500">
@@ -38,7 +68,7 @@ export default function WeeklySummaryChart({
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
-              <p className="mt-2">No weekly data available</p>
+              <p className="mt-2">No {viewMode}ly data available</p>
             </div>
           </div>
         </CardContent>
@@ -47,14 +77,21 @@ export default function WeeklySummaryChart({
   }
 
   // Prepare data for ECharts
-  const categories = weeklyData.map(week => {
-    const weekStart = dayjs(week.weekStart);
-    return weekStart.format('MMM DD');
+  const categories = currentData.map(item => {
+    if (viewMode === 'week') {
+      const weekData = item as WeeklyTaskData;
+      const weekStart = dayjs(weekData.weekStart);
+      return weekStart.format('MMM DD');
+    } else {
+      const monthData = item as MonthlyTaskData;
+      const monthStart = dayjs(monthData.monthStart);
+      return monthStart.format('MMM YYYY');
+    }
   });
 
-  const assignedData = weeklyData.map(week => week.assigned);
-  const completedData = weeklyData.map(week => week.completed);
-  const teamAverageData = teamAverage > 0 ? weeklyData.map(() => teamAverage) : [];
+  const assignedData = currentData.map(item => item.assigned);
+  const completedData = currentData.map(item => item.completed);
+  const teamAverageData = teamAverage > 0 ? currentData.map(() => teamAverage) : [];
 
   const option = {
     title: {
@@ -212,21 +249,35 @@ export default function WeeklySummaryChart({
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>Weekly Task Summary</CardTitle>
+            <CardTitle>
+              {viewMode === 'week' ? 'Weekly' : 'Monthly'} Task Summary
+            </CardTitle>
             <p className="text-sm text-gray-600 mt-1">
               Track your task assignment and completion trends over time
+              {viewMode === 'week' ? ' (52 weeks)' : ' (12 months)'}
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-500">
-              Overall Completion Rate
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <div className="text-sm text-gray-500">
+                Overall Completion Rate
+              </div>
+              <div className={`text-lg font-bold ${
+                completionRate >= 80 ? 'text-green-600' : 
+                completionRate >= 60 ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {Math.round(completionRate)}%
+              </div>
             </div>
-            <div className={`text-lg font-bold ${
-              completionRate >= 80 ? 'text-green-600' : 
-              completionRate >= 60 ? 'text-yellow-600' : 'text-red-600'
-            }`}>
-              {Math.round(completionRate)}%
-            </div>
+            <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">Week</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardHeader>
@@ -270,9 +321,12 @@ function WeeklySummaryChartSkeleton() {
             <div className="h-6 w-48 bg-gray-300 rounded animate-pulse"></div>
             <div className="h-4 w-64 bg-gray-300 rounded animate-pulse mt-2"></div>
           </div>
-          <div className="text-right">
-            <div className="h-4 w-24 bg-gray-300 rounded animate-pulse"></div>
-            <div className="h-6 w-12 bg-gray-300 rounded animate-pulse mt-1"></div>
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <div className="h-4 w-24 bg-gray-300 rounded animate-pulse"></div>
+              <div className="h-6 w-12 bg-gray-300 rounded animate-pulse mt-1"></div>
+            </div>
+            <div className="h-10 w-32 bg-gray-300 rounded animate-pulse"></div>
           </div>
         </div>
       </CardHeader>
