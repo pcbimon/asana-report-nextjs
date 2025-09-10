@@ -15,6 +15,11 @@ export interface LoadingProgress {
   total: number;
   percentage: number;
   status: string;
+  // New detailed progress fields
+  sections?: { loaded: number; total: number };
+  tasks?: { loaded: number; total: number };
+  subtasks?: { loaded: number; total: number };
+  teamUsers?: { loaded: number; total: number };
 }
 
 // Types for Asana API responses
@@ -81,6 +86,7 @@ export class AsanaApiClient {
   private rateLimitDelay: number;
   private progressCallback?: (progress: LoadingProgress) => void;
   private teamUsers: Assignee[] = []; // Cache team users
+  private maxConcurrentRequests: number = 5; // For parallel loading
 
   constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_ASANA_BASE_URL || 'https://app.asana.com/api/1.0';
@@ -128,18 +134,69 @@ export class AsanaApiClient {
   }
 
   /**
-   * Update progress and notify callback
+   * Update progress and notify callback with detailed counts
    */
-  private updateProgress(current: number, total: number, status: string): void {
+  private updateProgress(current: number, total: number, status: string, details?: {
+    sections?: { loaded: number; total: number };
+    tasks?: { loaded: number; total: number };
+    subtasks?: { loaded: number; total: number };
+    teamUsers?: { loaded: number; total: number };
+  }): void {
     if (this.progressCallback) {
       const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
       this.progressCallback({
         current,
         total,
         percentage,
-        status
+        status,
+        ...details
       });
     }
+  }
+
+  /**
+   * Execute promises in parallel with rate limiting
+   */
+  private async executeInParallel<T, R>(
+    items: T[],
+    executor: (item: T) => Promise<R>,
+    maxConcurrency: number = this.maxConcurrentRequests,
+    progressCallback?: (completed: number, total: number) => void
+  ): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let completed = 0;
+    let index = 0;
+
+    const executeNext = async (): Promise<void> => {
+      if (index >= items.length) return;
+      
+      const currentIndex = index++;
+      const item = items[currentIndex];
+      
+      try {
+        await this.delay(); // Rate limiting
+        const result = await executor(item);
+        results[currentIndex] = result;
+      } catch (error) {
+        console.error(`Error processing item ${currentIndex}:`, error);
+        // Set default value for failed items
+        results[currentIndex] = null as any;
+      }
+      
+      completed++;
+      progressCallback?.(completed, items.length);
+      
+      // Continue with next item
+      return executeNext();
+    };
+
+    // Start parallel execution up to maxConcurrency
+    const workers = Array(Math.min(maxConcurrency, items.length))
+      .fill(null)
+      .map(() => executeNext());
+
+    await Promise.all(workers);
+    return results.filter(r => r !== null);
   }
 
   /**
@@ -344,120 +401,178 @@ export class AsanaApiClient {
   }
 
   /**
-   * Fetch complete report data from Asana
+   * Fetch complete report data from Asana with optimized parallel loading
    */
   async fetchCompleteReport(): Promise<AsanaReport> {
     try {
-      console.log('Starting complete report fetch...');
+      console.log('Starting optimized complete report fetch...');
       
-      // Step 1: Fetch team users first for efficiency
-      this.updateProgress(0, 100, 'Loading team users...');
-      this.teamUsers = await this.fetchTeamUsers();
+      // Step 1: Initialize progress with detailed counts
+      this.updateProgress(0, 100, 'เริ่มต้นโหลดข้อมูล...', {
+        teamUsers: { loaded: 0, total: 0 },
+        sections: { loaded: 0, total: 0 },
+        tasks: { loaded: 0, total: 0 },
+        subtasks: { loaded: 0, total: 0 }
+      });
       
-      // Step 2: Get exact task count from project API
-      this.updateProgress(5, 100, 'Getting project task count...');
-      const totalTasksInProject = await this.fetchProjectTaskCounts();
+      // Step 2: Fetch team users and sections in parallel
+      this.updateProgress(5, 100, 'โหลดข้อมูลผู้ใช้และแผนกแบบขนาน...');
       
-      // Step 3: Fetch all sections
-      this.updateProgress(10, 100, 'Loading sections...');
-      const sections = await this.fetchSections();
+      const [teamUsers, sections] = await Promise.all([
+        this.fetchTeamUsers(),
+        this.fetchSections()
+      ]);
       
-      // Step 4: Calculate progress based on actual task count
-      // Operations: team users (done) + task count (done) + sections (done) + tasks + subtask count checks + subtasks
-      const initialWeight = 10; // Already completed
-      const tasksWeight = 30; // Loading tasks
-      const subtaskCountWeight = 10; // Getting subtask counts
-      const subtasksWeight = 50; // Loading actual subtasks
+      this.teamUsers = teamUsers;
+      console.log(`Loaded ${teamUsers.length} team users and ${sections.length} sections in parallel`);
       
-      let currentProgress = initialWeight;
-      this.updateProgress(currentProgress, 100, `Loading ${totalTasksInProject} tasks across ${sections.length} sections...`);
+      // Update progress with actual counts
+      this.updateProgress(15, 100, 'โหลดแผนกและผู้ใช้เสร็จสิ้น', {
+        teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+        sections: { loaded: sections.length, total: sections.length },
+        tasks: { loaded: 0, total: 0 },
+        subtasks: { loaded: 0, total: 0 }
+      });
       
-      let totalTasksProcessed = 0;
-      let totalSubtasksCount = 0;
+      // Step 3: Get project task count estimate
+      this.updateProgress(20, 100, 'ประเมินจำนวนงานทั้งหมด...');
+      const estimatedTaskCount = await this.fetchProjectTaskCounts();
       
-      // Step 5: Fetch tasks for each section
-      for (let i = 0; i < sections.length; i++) {
-        const section = sections[i];
+      // Step 4: Load tasks for all sections in parallel
+      this.updateProgress(25, 100, `โหลด ${estimatedTaskCount} งานแบบขนาน...`, {
+        teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+        sections: { loaded: sections.length, total: sections.length },
+        tasks: { loaded: 0, total: estimatedTaskCount },
+        subtasks: { loaded: 0, total: 0 }
+      });
+      
+      let totalTasksLoaded = 0;
+      
+      // Load tasks for all sections in parallel with progress tracking
+      const taskLoadingPromises = sections.map(async (section) => {
         const tasks = await this.fetchTasksInSection(section.gid);
         section.tasks = tasks;
-        totalTasksProcessed += tasks.length;
+        totalTasksLoaded += tasks.length;
         
-        // Update progress for tasks loading
-        const taskProgress = totalTasksInProject > 0 ? 
-          (totalTasksProcessed / totalTasksInProject) * tasksWeight : 
-          tasksWeight;
-        currentProgress = initialWeight + taskProgress;
+        // Update progress for this section
+        const progressPercent = 25 + (totalTasksLoaded / Math.max(estimatedTaskCount, totalTasksLoaded)) * 25;
+        this.updateProgress(progressPercent, 100, `โหลดงานใน '${section.name}' เสร็จสิ้น`, {
+          teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+          sections: { loaded: sections.length, total: sections.length },
+          tasks: { loaded: totalTasksLoaded, total: Math.max(estimatedTaskCount, totalTasksLoaded) },
+          subtasks: { loaded: 0, total: 0 }
+        });
         
-        this.updateProgress(currentProgress, 100, 
-          `Loading tasks in '${section.name}' (${totalTasksProcessed}/${totalTasksInProject})...`);
-      }
+        return section;
+      });
       
-      // Step 6: Get subtask counts for accurate progress calculation
-      currentProgress = initialWeight + tasksWeight;
-      this.updateProgress(currentProgress, 100, 'Calculating subtask counts...');
+      // Wait for all task loading to complete
+      await Promise.all(taskLoadingPromises);
       
       const allTasks = sections.flatMap(section => section.tasks);
+      const actualTaskCount = allTasks.length;
+      
+      console.log(`Loaded ${actualTaskCount} tasks (estimated: ${estimatedTaskCount})`);
+      
+      // Step 5: Get subtask counts in parallel batches
+      this.updateProgress(50, 100, `ตรวจสอบจำนวนงานย่อยสำหรับ ${actualTaskCount} งาน...`, {
+        teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+        sections: { loaded: sections.length, total: sections.length },
+        tasks: { loaded: actualTaskCount, total: actualTaskCount },
+        subtasks: { loaded: 0, total: 0 }
+      });
+      
+      // Batch subtask count requests for better performance
+      const batchSize = 10;
+      let totalSubtasksEstimate = 0;
       let subtaskCountsProcessed = 0;
       
-      // Get subtask counts for all tasks
-      for (const task of allTasks) {
-        const subtaskCount = await this.fetchTaskWithSubtaskCount(task.gid);
-        totalSubtasksCount += subtaskCount;
-        subtaskCountsProcessed++;
+      for (let i = 0; i < allTasks.length; i += batchSize) {
+        const batch = allTasks.slice(i, Math.min(i + batchSize, allTasks.length));
         
-        // Update progress for subtask count checks
-        const subtaskCountProgress = allTasks.length > 0 ? 
-          (subtaskCountsProcessed / allTasks.length) * subtaskCountWeight : 
-          subtaskCountWeight;
-        currentProgress = initialWeight + tasksWeight + subtaskCountProgress;
+        const subtaskCounts = await this.executeInParallel(
+          batch,
+          (task) => this.fetchTaskWithSubtaskCount(task.gid),
+          Math.min(batchSize, this.maxConcurrentRequests)
+        );
         
-        if (subtaskCountsProcessed % 5 === 0 || subtaskCountsProcessed === allTasks.length) {
-          this.updateProgress(currentProgress, 100, 
-            `Calculating subtask counts (${subtaskCountsProcessed}/${allTasks.length})...`);
-        }
+        totalSubtasksEstimate += subtaskCounts.reduce((sum, count) => sum + count, 0);
+        subtaskCountsProcessed += batch.length;
+        
+        const progressPercent = 50 + (subtaskCountsProcessed / actualTaskCount) * 15;
+        this.updateProgress(progressPercent, 100, 
+          `ตรวจสอบงานย่อย (${subtaskCountsProcessed}/${actualTaskCount})...`, {
+          teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+          sections: { loaded: sections.length, total: sections.length },
+          tasks: { loaded: actualTaskCount, total: actualTaskCount },
+          subtasks: { loaded: 0, total: totalSubtasksEstimate }
+        });
       }
       
-      // Step 7: Fetch actual subtasks
-      currentProgress = initialWeight + tasksWeight + subtaskCountWeight;
-      this.updateProgress(currentProgress, 100, 
-        `Loading ${totalSubtasksCount} subtasks for ${allTasks.length} tasks...`);
+      console.log(`Estimated ${totalSubtasksEstimate} subtasks across ${actualTaskCount} tasks`);
       
-      let subtasksProcessed = 0;
+      // Step 6: Load subtasks in parallel batches
+      this.updateProgress(65, 100, `โหลด ${totalSubtasksEstimate} งานย่อยแบบขนาน...`, {
+        teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+        sections: { loaded: sections.length, total: sections.length },
+        tasks: { loaded: actualTaskCount, total: actualTaskCount },
+        subtasks: { loaded: 0, total: totalSubtasksEstimate }
+      });
       
-      for (const section of sections) {
-        for (const task of section.tasks) {
-          const subtasks = await this.fetchSubtasks(task.gid);
-          task.subtasks = subtasks;
-          subtasksProcessed += subtasks.length;
-          
-          // Update progress for subtasks loading
-          const subtaskProgress = totalSubtasksCount > 0 ? 
-            (subtasksProcessed / totalSubtasksCount) * subtasksWeight : 
-            subtasksWeight / allTasks.length * (allTasks.indexOf(task) + 1);
-          currentProgress = initialWeight + tasksWeight + subtaskCountWeight + subtaskProgress;
-          
-          this.updateProgress(currentProgress, 100, 
-            `Loading subtasks for '${task.name}' (${subtasksProcessed}/${totalSubtasksCount})...`);
-        }
+      let totalSubtasksLoaded = 0;
+      
+      // Process tasks in smaller batches to respect rate limits
+      const subtaskBatchSize = 8;
+      
+      for (let i = 0; i < allTasks.length; i += subtaskBatchSize) {
+        const batch = allTasks.slice(i, Math.min(i + subtaskBatchSize, allTasks.length));
+        
+        const subtaskResults = await this.executeInParallel(
+          batch,
+          async (task) => {
+            const subtasks = await this.fetchSubtasks(task.gid);
+            task.subtasks = subtasks;
+            return subtasks;
+          },
+          Math.min(subtaskBatchSize, this.maxConcurrentRequests)
+        );
+        
+        // Update total loaded count
+        totalSubtasksLoaded = sections.reduce((sum, section) => 
+          sum + section.tasks.reduce((taskSum, task) => taskSum + task.subtasks.length, 0), 0
+        );
+        
+        const progressPercent = 65 + ((i + batch.length) / actualTaskCount) * 30;
+        this.updateProgress(progressPercent, 100, 
+          `โหลดงานย่อย (${i + batch.length}/${actualTaskCount} งาน)...`, {
+          teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+          sections: { loaded: sections.length, total: sections.length },
+          tasks: { loaded: actualTaskCount, total: actualTaskCount },
+          subtasks: { loaded: totalSubtasksLoaded, total: Math.max(totalSubtasksEstimate, totalSubtasksLoaded) }
+        });
       }
-
+      
+      // Step 7: Create and return report
       const report = new AsanaReport(sections, this.teamUsers);
       
-      // Final progress update
-      this.updateProgress(100, 100, 'Report loaded successfully!');
-      
-      console.log('Report fetch completed successfully');
-      
-      // Log summary
-      const totalTasksActual = sections.reduce((sum, section) => sum + section.tasks.length, 0);
-      const totalSubtasksActual = sections.reduce((sum, section) => 
+      // Final progress update with actual counts
+      const finalSubtaskCount = sections.reduce((sum, section) => 
         sum + section.tasks.reduce((taskSum, task) => taskSum + task.subtasks.length, 0), 0
       );
       
-      console.log(`Report summary: ${sections.length} sections, ${totalTasksActual} tasks, ${totalSubtasksActual} subtasks, ${this.teamUsers.length} team users`);
-      console.log(`Accuracy: Predicted ${totalTasksInProject} tasks (actual: ${totalTasksActual}), predicted ${totalSubtasksCount} subtasks (actual: ${totalSubtasksActual})`);
+      this.updateProgress(100, 100, 'โหลดข้อมูลเสร็จสิ้น!', {
+        teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
+        sections: { loaded: sections.length, total: sections.length },
+        tasks: { loaded: actualTaskCount, total: actualTaskCount },
+        subtasks: { loaded: finalSubtaskCount, total: finalSubtaskCount }
+      });
+      
+      console.log('Optimized report fetch completed successfully');
+      console.log(`Final counts: ${sections.length} sections, ${actualTaskCount} tasks, ${finalSubtaskCount} subtasks, ${teamUsers.length} team users`);
+      console.log(`Performance: Estimated ${totalSubtasksEstimate} subtasks (actual: ${finalSubtaskCount})`);
       
       return report;
+      
     } catch (error) {
       console.error('Error fetching complete report:', error);
       throw new Error(`Failed to fetch complete report: ${error instanceof Error ? error.message : 'Unknown error'}`);

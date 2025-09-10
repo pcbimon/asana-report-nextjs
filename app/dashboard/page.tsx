@@ -285,12 +285,73 @@ export default function DashboardPage() {
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
                   <div 
                     className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${loadingProgress.percentage}%` }}
                   ></div>
                 </div>
+
+                {/* Detailed Progress - Show actual counts */}
+                {(loadingProgress.teamUsers || loadingProgress.sections || loadingProgress.tasks || loadingProgress.subtasks) && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    {loadingProgress.teamUsers && (
+                      <div className="text-center p-3 bg-blue-50 rounded-lg">
+                        <div className="text-lg font-bold text-blue-600">
+                          {loadingProgress.teamUsers.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">ผู้ใช้งาน</div>
+                        {loadingProgress.teamUsers.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.teamUsers.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {loadingProgress.sections && (
+                      <div className="text-center p-3 bg-green-50 rounded-lg">
+                        <div className="text-lg font-bold text-green-600">
+                          {loadingProgress.sections.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">แผนก</div>
+                        {loadingProgress.sections.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.sections.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {loadingProgress.tasks && (
+                      <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                        <div className="text-lg font-bold text-yellow-600">
+                          {loadingProgress.tasks.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">งาน</div>
+                        {loadingProgress.tasks.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.tasks.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {loadingProgress.subtasks && (
+                      <div className="text-center p-3 bg-purple-50 rounded-lg">
+                        <div className="text-lg font-bold text-purple-600">
+                          {loadingProgress.subtasks.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">งานย่อย</div>
+                        {loadingProgress.subtasks.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.subtasks.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Loading Animation */}
                 <div className="flex items-center justify-center mt-4">

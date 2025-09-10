@@ -23,6 +23,11 @@ export interface LoadingProgress {
   total: number;
   percentage: number;
   status: string;
+  // New detailed progress fields
+  sections?: { loaded: number; total: number };
+  tasks?: { loaded: number; total: number };
+  subtasks?: { loaded: number; total: number };
+  teamUsers?: { loaded: number; total: number };
 }
 
 export interface UseAsanaDataReturn {
@@ -151,33 +156,45 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   const fetchFromApi = useCallback(async () => {
     try {
       console.log('Fetching fresh data from Asana API via server...');
-      setLoadingProgress({ current: 0, total: 100, percentage: 0, status: 'Starting...' });
-      
-      // Update progress periodically (since we can't get real-time progress from API route yet)
-      const progressInterval = setInterval(() => {
-        setLoadingProgress(prev => {
-          if (!prev) return { current: 10, total: 100, percentage: 10, status: 'Loading...' };
-          const newCurrent = Math.min(prev.current + 10, 90);
-          return {
-            current: newCurrent,
-            total: 100,
-            percentage: newCurrent,
-            status: 'Fetching data from server...'
-          };
-        });
-      }, 2000);
+      setLoadingProgress({ 
+        current: 0, 
+        total: 100, 
+        percentage: 0, 
+        status: 'เริ่มต้น...',
+        teamUsers: { loaded: 0, total: 0 },
+        sections: { loaded: 0, total: 0 },
+        tasks: { loaded: 0, total: 0 },
+        subtasks: { loaded: 0, total: 0 }
+      });
       
       const freshReport = await fetchReportFromApi();
       
-      clearInterval(progressInterval);
-      setLoadingProgress({ current: 95, total: 100, percentage: 95, status: 'Saving to cache...' });
+      setLoadingProgress({ 
+        current: 95, 
+        total: 100, 
+        percentage: 95, 
+        status: 'บันทึกข้อมูลลงแคช...',
+        teamUsers: { loaded: 0, total: 0 },
+        sections: { loaded: 0, total: 0 },
+        tasks: { loaded: 0, total: 0 },
+        subtasks: { loaded: 0, total: 0 }
+      });
       
       // Save to Supabase
       await saveReport(freshReport);
       setReport(freshReport);
       
       // Clear progress when done
-      setLoadingProgress({ current: 100, total: 100, percentage: 100, status: 'Complete!' });
+      setLoadingProgress({ 
+        current: 100, 
+        total: 100, 
+        percentage: 100, 
+        status: 'เสร็จสิ้น!',
+        teamUsers: { loaded: 0, total: 0 },
+        sections: { loaded: 0, total: 0 },
+        tasks: { loaded: 0, total: 0 },
+        subtasks: { loaded: 0, total: 0 }
+      });
       setTimeout(() => setLoadingProgress(null), 1000);
       
       console.log('Data fetched and cached successfully');
