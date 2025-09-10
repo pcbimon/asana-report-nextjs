@@ -8,6 +8,15 @@
 import React, { useState, useMemo } from 'react';
 import { Task, Subtask } from '../models/asanaReport';
 import dayjs from 'dayjs';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '../../components/ui/select';
 
 interface CurrentTasksTableProps {
   tasks: Task[];
@@ -211,12 +220,11 @@ export default function CurrentTasksTable({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
+    <Card>
+      <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Current Tasks</h3>
+            <CardTitle>Current Tasks</CardTitle>
             <p className="text-sm text-gray-600 mt-1">
               {filteredAndSortedItems.length} of {taskItems.length} items
             </p>
@@ -226,38 +234,34 @@ export default function CurrentTasksTable({
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Search */}
             <div className="relative">
-              <input
+              <Input
                 type="text"
                 placeholder="Search tasks..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pr-10 sm:text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="w-64"
               />
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
             </div>
-
+            
             {/* Status filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="block w-full sm:w-auto sm:text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="overdue">Overdue</option>
-            </select>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
+      </CardHeader>
+      <CardContent className="p-0">
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th 
@@ -385,14 +389,15 @@ export default function CurrentTasksTable({
           </p>
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function CurrentTasksTableSkeleton() {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-      <div className="px-6 py-4 border-b border-gray-200">
+    <Card>
+      <CardHeader>
         <div className="flex justify-between items-center">
           <div>
             <div className="h-6 w-32 bg-gray-300 rounded animate-pulse"></div>
@@ -403,9 +408,10 @@ function CurrentTasksTableSkeleton() {
             <div className="h-10 w-32 bg-gray-300 rounded animate-pulse"></div>
           </div>
         </div>
-      </div>
+      </CardHeader>
       
-      <div className="overflow-x-auto">
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -428,7 +434,8 @@ function CurrentTasksTableSkeleton() {
             ))}
           </tbody>
         </table>
-      </div>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
