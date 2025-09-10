@@ -133,32 +133,6 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Setup Instructions</span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <div className="bg-gray-50 rounded-md p-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Admin User Setup</h4>
-                <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
-                  <li>Create an admin user in your Supabase Auth dashboard</li>
-                  <li>Use email: <code className="bg-gray-200 px-1 rounded">admin@example.com</code></li>
-                  <li>Set password in your <code className="bg-gray-200 px-1 rounded">.env.local</code>:</li>
-                  <li className="ml-4">
-                    <code className="bg-gray-200 px-1 rounded text-xs">NEXT_ADMIN_PWD=your_password</code>
-                  </li>
-                  <li>Configure Supabase environment variables</li>
-                </ol>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
