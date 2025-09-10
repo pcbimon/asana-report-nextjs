@@ -15,10 +15,21 @@ export class Assignee {
   }
 }
 
+export class Follower {
+  gid: string;
+  name: string;
+
+  constructor(gid: string, name: string) {
+    this.gid = gid;
+    this.name = name;
+  }
+}
+
 export class Subtask {
   gid: string;
   name: string;
   assignee?: Assignee;
+  followers: Follower[];
   completed: boolean;
   created_at?: string;
   completed_at?: string;
@@ -28,6 +39,7 @@ export class Subtask {
     name: string,
     completed: boolean,
     assignee?: Assignee,
+    followers: Follower[] = [],
     created_at?: string,
     completed_at?: string
   ) {
@@ -35,6 +47,7 @@ export class Subtask {
     this.name = name;
     this.completed = completed;
     this.assignee = assignee;
+    this.followers = followers;
     this.created_at = created_at;
     this.completed_at = completed_at;
   }
@@ -203,11 +216,16 @@ export class AsanaReport {
             new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
             undefined;
 
+          const followers = subtaskData.followers?.map((followerData: any) =>
+            new Follower(followerData.gid, followerData.name)
+          ) || [];
+
           return new Subtask(
             subtaskData.gid,
             subtaskData.name,
             subtaskData.completed,
             subtaskAssignee,
+            followers,
             subtaskData.created_at,
             subtaskData.completed_at
           );

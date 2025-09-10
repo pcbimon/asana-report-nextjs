@@ -7,7 +7,7 @@
  */
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { Assignee, Section, Task, Subtask, AsanaReport } from '../models/asanaReport';
+import { Assignee, Section, Task, Subtask, Follower, AsanaReport } from '../models/asanaReport';
 
 // Progress tracking interface
 export interface LoadingProgress {
@@ -49,6 +49,10 @@ interface AsanaSubtask {
     name: string;
     email?: string;
   };
+  followers?: Array<{
+    gid: string;
+    name: string;
+  }>;
   completed: boolean;
   created_at?: string;
   completed_at?: string;
@@ -304,7 +308,7 @@ export class AsanaApiClient {
         `/tasks/${taskGid}/subtasks`,
         {
           params: {
-            opt_fields: 'name,assignee.name,assignee.email,completed,created_at,completed_at'
+            opt_fields: 'name,assignee.name,assignee.email,completed,created_at,completed_at,followers.name'
           }
         }
       );
@@ -314,11 +318,16 @@ export class AsanaApiClient {
           new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
           undefined;
 
+        const followers = subtaskData.followers?.map(followerData =>
+          new Follower(followerData.gid, followerData.name)
+        ) || [];
+
         return new Subtask(
           subtaskData.gid,
           subtaskData.name,
           subtaskData.completed,
           assignee,
+          followers,
           subtaskData.created_at,
           subtaskData.completed_at
         );
