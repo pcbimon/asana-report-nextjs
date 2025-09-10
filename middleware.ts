@@ -2,44 +2,61 @@
  * Middleware for route protection
  */
 
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
   // Skip middleware if Supabase is not configured
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabasePublishableKey) {
     return NextResponse.next();
   }
 
-  let res = NextResponse.next({
+  let response = NextResponse.next({
     request: {
       headers: req.headers,
     },
   });
 
-  // createMiddlewareClient expects a single options object — include supabaseUrl/key here
-  // createMiddlewareClient expects an options object with only req and res
-  const supabase = createMiddlewareClient({ req, res })
-  // Debug: check incoming cookies and session fetch result
-  console.log('cookies:', req.headers.get('cookie'));
- 
+  const supabase = createServerClient(
+    supabaseUrl,
+    supabasePublishableKey,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+          response = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
   // Refresh session if expired - required for Server Components
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  console.log('session:', session);
+
   // Protected routes
   const protectedRoutes = ['/dashboard'];
   const isProtectedRoute = protectedRoutes.some(route => 
     req.nextUrl.pathname.startsWith(route)
   );
+
   // If accessing protected route without session, redirect to login
   if (isProtectedRoute && !session) {
-    console.log('Redirecting to login - no session');
     const redirectUrl = new URL('/login', req.url);
     return NextResponse.redirect(redirectUrl);
   }
@@ -50,7 +67,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  return res;
+  return response;
 }
 
 export const config = {
