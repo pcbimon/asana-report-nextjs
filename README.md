@@ -72,8 +72,8 @@ A comprehensive individual dashboard for analyzing personal work performance fro
    ```env
    # Asana API Configuration
    NEXT_PUBLIC_ASANA_BASE_URL=https://app.asana.com/api/1.0
-   NEXT_ASANA_TOKEN=your_personal_access_token_here
-   NEXT_ASANA_PROJECT_ID=your_project_id_here
+   ASANA_TOKEN=your_personal_access_token_here
+   ASANA_PROJECT_ID=your_project_id_here
 
    # Optional: Dashboard Configuration
    NEXT_PUBLIC_CACHE_TTL_HOURS=12
@@ -85,12 +85,12 @@ A comprehensive individual dashboard for analyzing personal work performance fro
    **Personal Access Token:**
    - Go to [Asana Developer Console](https://app.asana.com/0/my-apps)
    - Click "Create New Personal Access Token"
-   - Copy the generated token to `NEXT_ASANA_TOKEN`
+   - Copy the generated token to `ASANA_TOKEN`
 
    **Project ID:**
    - Open your Asana project in the browser
    - The URL will look like: `https://app.asana.com/0/PROJECT_ID/board`
-   - Copy the `PROJECT_ID` to `NEXT_ASANA_PROJECT_ID`
+   - Copy the `PROJECT_ID` to `ASANA_PROJECT_ID`
 
 5. **Start the development server**:
    ```bash
@@ -222,8 +222,8 @@ npm run lint
 
 ### Environment Variables
 - `NEXT_PUBLIC_ASANA_BASE_URL`: Asana API base URL (default: https://app.asana.com/api/1.0)
-- `NEXT_ASANA_TOKEN`: Your Asana Personal Access Token (required)
-- `NEXT_ASANA_PROJECT_ID`: Target Asana project ID (required)
+- `ASANA_TOKEN`: Your Asana Personal Access Token (required)
+- `ASANA_PROJECT_ID`: Target Asana project ID (required)
 - `NEXT_PUBLIC_CACHE_TTL_HOURS`: Cache expiration time in hours (default: 12)
 - `NEXT_PUBLIC_APP_NAME`: Dashboard title (default: Asana Individual Dashboard)
 

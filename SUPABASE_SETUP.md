@@ -38,9 +38,9 @@ This guide will help you set up Supabase for the Asana Dashboard application.
 
 ```env
 # Asana API Configuration
-NEXT_ASANA_TOKEN=your_asana_personal_access_token
-NEXT_ASANA_PROJECT_ID=your_asana_project_id
-NEXT_ASANA_TEAM_ID=your_asana_team_id
+ASANA_TOKEN=your_asana_personal_access_token
+ASANA_PROJECT_ID=your_asana_project_id
+ASANA_TEAM_ID=your_asana_team_id
 
 # Rate limiting configuration
 RATE_LIMIT=150
@@ -50,7 +50,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # Admin Authentication
-NEXT_ADMIN_PWD=your_secure_admin_password
+ADMIN_PWD=your_secure_admin_password
 ```
 
 ## Step 5: Create Admin User
@@ -58,7 +58,7 @@ NEXT_ADMIN_PWD=your_secure_admin_password
 1. In your Supabase dashboard, go to Authentication > Users
 2. Click "Add user"
 3. Use email: `admin@example.com`
-4. Use password: (same as your `NEXT_ADMIN_PWD` environment variable)
+4. Use password: (same as your `ADMIN_PWD` environment variable)
 5. Click "Add user"
 
 ## Step 6: Test the Application
@@ -123,7 +123,7 @@ The application automatically handles the migration from localStorage to Supabas
 
 ### "Authentication Error" on login
 - Verify your admin user exists in Supabase Auth
-- Check that the password matches your `NEXT_ADMIN_PWD` environment variable
+- Check that the password matches your `ADMIN_PWD` environment variable
 - Ensure your Supabase project is active and not paused
 
 ### Data not persisting

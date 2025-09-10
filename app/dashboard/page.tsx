@@ -58,13 +58,13 @@ export default function DashboardPage() {
                 <li>Add your Asana Personal Access Token:</li>
                 <li className="ml-4">
                   <code className="bg-gray-200 px-2 py-1 rounded text-xs">
-                    NEXT_ASANA_TOKEN=your_token_here
+                    ASANA_TOKEN=your_token_here
                   </code>
                 </li>
                 <li>Add your Project ID:</li>
                 <li className="ml-4">
                   <code className="bg-gray-200 px-2 py-1 rounded text-xs">
-                    NEXT_ASANA_PROJECT_ID=your_project_id
+                    ASANA_PROJECT_ID=your_project_id
                   </code>
                 </li>
                 <li>Restart the development server</li>
