@@ -65,25 +65,29 @@ export function processAssigneeStats(
   assigneeGid: string,
   weeksToAnalyze: number = 52
 ): AssigneeStats | null {
-  const assigneeData = report.getAssigneeData(assigneeGid);
+  const userData = report.getUserData(assigneeGid);
   const assignee = report.getAllAssignees().find(a => a.gid === assigneeGid);
   
   if (!assignee) {
     return null;
   }
 
-  const weeklyData = generateWeeklyData(assigneeData.tasks, assigneeData.subtasks, weeksToAnalyze);
-  const monthlyData = generateMonthlyData(assigneeData.tasks, assigneeData.subtasks, 12); // 12 months
-  const projectDistribution = generateProjectDistribution(assigneeData.tasks, assigneeData.subtasks, report);
-  const statusDistribution = generateStatusDistribution(assigneeData.tasks, assigneeData.subtasks);
+  // Combine assignee and collaborator tasks for complete view
+  const allTasks = [...userData.assigneeData.tasks, ...userData.collaboratorData.tasks];
+  const allSubtasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+
+  const weeklyData = generateWeeklyData(allTasks, allSubtasks, weeksToAnalyze);
+  const monthlyData = generateMonthlyData(allTasks, allSubtasks, 12); // 12 months
+  const projectDistribution = generateProjectDistribution(allTasks, allSubtasks, report);
+  const statusDistribution = generateStatusDistribution(allTasks, allSubtasks);
 
   return {
     assignee,
-    totalTasks: assigneeData.totalTasks,
-    completedTasks: assigneeData.completedTasks,
-    overdueTasks: assigneeData.overdueTasks,
-    completionRate: assigneeData.completionRate,
-    averageTimePerTask: assigneeData.averageTimePerTask,
+    totalTasks: userData.combined.totalTasks,
+    completedTasks: userData.combined.completedTasks,
+    overdueTasks: userData.combined.overdueTasks,
+    completionRate: userData.combined.completionRate,
+    averageTimePerTask: (userData.assigneeData.averageTimePerTask + userData.collaboratorData.averageTimePerTask) / 2,
     weeklyData,
     monthlyData,
     projectDistribution,
