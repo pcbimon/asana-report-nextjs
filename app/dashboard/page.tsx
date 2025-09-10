@@ -11,6 +11,7 @@ import KpiCards from '../../src/components/KpiCards';
 import WeeklySummaryChart from '../../src/components/WeeklySummaryChart';
 import DistributionPieCharts from '../../src/components/DistributionPieCharts';
 import CurrentTasksTable from '../../src/components/CurrentTasksTable';
+import DepartmentSelector, { DepartmentBadge } from '../../src/components/DepartmentSelector';
 import { useAsanaData } from '../../src/lib/hooks/useAsanaDataApi';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Button } from '../../components/ui/button';
@@ -21,10 +22,10 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '../../components/ui/select';
-import { UserRoleLevel } from '../../src/types/userRoles';
+import { UserRoleLevel, getDepartmentDisplayName } from '../../src/types/userRoles';
 
 export default function DashboardPage() {
-  const { userRole, permissions } = useAuth();
+  const { userRole, userDepartments, currentDepartment, permissions, setCurrentDepartment } = useAuth();
   const {
     report,
     assignees,
@@ -51,23 +52,25 @@ export default function DashboardPage() {
     );
   }
 
-  // Role-based title
+  // Role-based title with department context
   const getDashboardTitle = () => {
     if (!userRole) return 'Dashboard';
     
+    const departmentContext = currentDepartment ? ` - ${getDepartmentDisplayName(currentDepartment)}` : '';
+    
     switch (userRole.role_level) {
       case UserRoleLevel.OPERATIONAL:
-        return 'Dashboard ส่วนบุคคล';
+        return `Dashboard ส่วนบุคคล${departmentContext}`;
       case UserRoleLevel.MANAGER:
-        return 'Dashboard ระดับหัวหน้างาน';
+        return `Dashboard ระดับหัวหน้างาน${departmentContext}`;
       case UserRoleLevel.DEPUTY_DIRECTOR:
-        return 'Dashboard ระดับรองผู้อำนวยการ';
+        return `Dashboard ระดับรองผู้อำนวยการ${departmentContext}`;
       case UserRoleLevel.DIRECTOR:
-        return 'Dashboard ระดับผู้อำนวยการ';
+        return `Dashboard ระดับผู้อำนวยการ${departmentContext}`;
       case UserRoleLevel.ADMIN:
-        return 'Dashboard ผู้ดูแลระบบ';
+        return `Dashboard ผู้ดูแลระบบ${departmentContext}`;
       default:
-        return 'Dashboard';
+        return `Dashboard${departmentContext}`;
     }
   };
 
@@ -132,15 +135,31 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {/* Department Selector (only for users with multiple departments) */}
+        {userDepartments.length > 1 && (
+          <div className="mb-6">
+            <DepartmentSelector
+              departments={userDepartments}
+              currentDepartment={currentDepartment}
+              onDepartmentChange={setCurrentDepartment}
+            />
+          </div>
+        )}
+
         {/* Assignee Selector (only for users who can select others) */}
         {permissions?.canSelectUsers && assignees.length > 1 && (
           <div className="mb-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-medium text-gray-900">เลือกสมาชิกทีม</h2>
+                  <div className="flex items-center space-x-3">
+                    <h2 className="text-sm font-medium text-gray-900">เลือกสมาชิกทีม</h2>
+                    {currentDepartment && (
+                      <DepartmentBadge department={currentDepartment} />
+                    )}
+                  </div>
                   <p className="text-xs text-gray-600 mt-1">
-                    ดูข้อมูลรายบุคคลของสมาชิกทีมที่คุณมีสิทธิ์เข้าถึง
+                    ดูข้อมูลรายบุคคลของสมาชิกทีมที่คุณมีสิทธิ์เข้าถึงในฝ่ายงานนี้
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -154,7 +173,12 @@ export default function DashboardPage() {
                     <SelectContent>
                       {assignees.map(assignee => (
                         <SelectItem key={assignee.gid} value={assignee.gid}>
-                          {assignee.name} {assignee.email && `(${assignee.email})`}
+                          <div className="flex flex-col">
+                            <span>{assignee.name}</span>
+                            {assignee.email && (
+                              <span className="text-xs text-gray-500">{assignee.email}</span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>

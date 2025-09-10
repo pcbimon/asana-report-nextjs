@@ -1,7 +1,7 @@
-# Multi-Level User System Deployment Instructions
+# Multi-Level User System with Department Support - Deployment Instructions
 
 ## Overview
-This document provides step-by-step instructions to deploy the multi-level user system for the Asana Report NextJS application.
+This document provides step-by-step instructions to deploy the multi-level user system with department-based access control for the Asana Report NextJS application.
 
 ## Prerequisites
 - Existing Supabase project with the main database setup completed
@@ -14,34 +14,83 @@ This document provides step-by-step instructions to deploy the multi-level user 
 1. Log into your Supabase dashboard
 2. Navigate to the SQL Editor
 3. Run the main `database-setup.sql` first (if not already done)
-4. Run `database-user-roles-setup.sql` to create the multi-level user system
+4. Run `database-user-roles-setup.sql` to create the multi-level user system with department support
 
-### Step 2: Configure User Roles
-Update the sample user roles in the SQL script with your actual user emails:
+### Step 2: Configure Departments
+Update the sample departments in the SQL script with your actual departments:
 
 ```sql
--- Replace these sample emails with your actual user emails
-INSERT INTO user_roles (email, role_level, role_name) VALUES
-  ('your-admin@company.com', 5, 'Admin'),
-  ('director@company.com', 4, 'Director'),
-  ('deputy@company.com', 3, 'Deputy Director'),
-  ('manager@company.com', 2, 'Manager'),
-  ('staff@company.com', 1, 'Operational')
-ON CONFLICT (email) DO UPDATE SET
+-- Replace these sample departments with your actual departments
+INSERT INTO departments (department_code, department_name, department_name_th) VALUES
+  ('IT', 'Information Technology', 'แผนกเทคโนโลยีสารสนเทศ'),
+  ('HR', 'Human Resources', 'แผนกทรัพยากรบุคคล'),
+  ('FIN', 'Finance', 'แผนกการเงิน'),
+  ('MKT', 'Marketing', 'แผนกการตลาด')
+ON CONFLICT (department_code) DO UPDATE SET
+  department_name = EXCLUDED.department_name,
+  department_name_th = EXCLUDED.department_name_th,
+  updated_at = NOW();
+```
+
+### Step 3: Configure User Roles with Departments
+Update the sample user roles with your actual user emails and department assignments:
+
+```sql
+-- Replace these with your actual user emails and department assignments
+INSERT INTO user_roles (email, role_level, role_name, department_id) VALUES
+  -- Admin has access to all departments (example with IT department)
+  ('admin@company.com', 5, 'ผู้ดูแลระบบ', 1),
+  
+  -- IT Department
+  ('it-director@company.com', 4, 'ผู้อำนวยการ', 1),
+  ('it-deputy@company.com', 3, 'รองผู้อำนวยการ', 1),
+  ('it-manager@company.com', 2, 'หัวหน้างาน', 1),
+  ('it-staff@company.com', 1, 'ปฏิบัติการ', 1),
+  
+  -- HR Department
+  ('hr-deputy@company.com', 3, 'รองผู้อำนวยการ', 2),
+  ('hr-manager@company.com', 2, 'หัวหน้างาน', 2),
+  ('hr-staff@company.com', 1, 'ปฏิบัติการ', 2),
+  
+  -- Example: User with access to multiple departments
+  ('multi-dept-deputy@company.com', 3, 'รองผู้อำนวยการ', 1),
+  ('multi-dept-deputy@company.com', 3, 'รองผู้อำนวยการ', 2)
+ON CONFLICT (email, department_id) DO UPDATE SET
   role_level = EXCLUDED.role_level,
   role_name = EXCLUDED.role_name,
   updated_at = NOW();
 ```
 
-## User Role Levels
+## User Role Levels with Department Support
 
-| Level | Role Name (Thai) | Role Name (English) | Permissions |
-|-------|------------------|-------------------|-------------|
-| 1 | ปฏิบัติการ | Operational | View own data only |
-| 2 | หัวหน้างาน | Manager | View own + operational level data |
-| 3 | รองผู้อำนวยการ | Deputy Director | View own + manager + operational data |
-| 4 | ผู้อำนวยการ | Director | View all data |
-| 5 | ผู้ดูแลระบบ | Admin | View all data + system management |
+| Level | Role Name (Thai) | Role Name (English) | Department Permissions |
+|-------|------------------|-------------------|----------------------|
+| 1 | ปฏิบัติการ | Operational | View own data only within assigned department |
+| 2 | หัวหน้างาน | Manager | View own + operational level data within assigned department |
+| 3 | รองผู้อำนวยการ | Deputy Director | View own + manager + operational data within assigned department(s) |
+| 4 | ผู้อำนวยการ | Director | View all data across all departments |
+| 5 | ผู้ดูแลระบบ | Admin | View all data + system management across all departments |
+
+## Department-Based Access Control
+
+### Department Hierarchy Example
+```
+Department A (IT):
+├── รองผู้อำนวยการ → sees หัวหน้างาน + ปฏิบัติการ in Department A only
+├── หัวหน้างาน → sees ปฏิบัติการ in Department A only  
+└── ปฏิบัติการ → sees only their own data
+
+Department B (HR):
+├── รองผู้อำนวยการ → sees หัวหน้างาน + ปฏิบัติการ in Department B only
+├── หัวหน้างาน → sees ปฏิบัติการ in Department B only
+└── ปฏิบัติการ → sees only their own data
+```
+
+### Multi-Department Access
+- Users can be assigned to multiple departments with different roles
+- When accessing the system, users with multiple departments will see a department selector dropdown
+- The first user option is always themselves, with additional visible users based on their role within the selected department
+- Directors and Admins can access all departments
 
 ## Environment Variables
 Ensure your `.env.local` file includes:
@@ -64,50 +113,100 @@ ASANA_PROJECT_ID=your_project_id
 To add new users to the system:
 
 ```sql
--- Add a new user role
-INSERT INTO user_roles (email, role_level, role_name, is_active)
-VALUES ('new.user@company.com', 2, 'Manager', true);
+-- Add a new user role to a department
+INSERT INTO user_roles (email, role_level, role_name, department_id, is_active)
+VALUES ('new.user@company.com', 2, 'หัวหน้างาน', 1, true);
 
--- Update existing user role
+-- Add user to multiple departments
+INSERT INTO user_roles (email, role_level, role_name, department_id, is_active) VALUES
+  ('multi.dept@company.com', 3, 'รองผู้อำนวยการ', 1, true),
+  ('multi.dept@company.com', 2, 'หัวหน้างาน', 2, true);
+
+-- Update existing user role in a department
 UPDATE user_roles 
-SET role_level = 3, role_name = 'Deputy Director', updated_at = NOW()
-WHERE email = 'user@company.com';
+SET role_level = 3, role_name = 'รองผู้อำนวยการ', updated_at = NOW()
+WHERE email = 'existing.user@company.com' AND department_id = 1;
 
--- Deactivate a user
+-- Deactivate user from all departments
 UPDATE user_roles 
 SET is_active = false, updated_at = NOW()
-WHERE email = 'user@company.com';
+WHERE email = 'user.to.remove@company.com';
+
+-- Deactivate user from specific department only
+UPDATE user_roles 
+SET is_active = false, updated_at = NOW()
+WHERE email = 'user@company.com' AND department_id = 2;
 ```
 
-### Step 3: User Registration Process
-1. Users must be added to the `user_roles` table before they can register
+### Step 3: Department Management
+
+```sql
+-- Add a new department
+INSERT INTO departments (department_code, department_name, department_name_th, is_active)
+VALUES ('ENG', 'Engineering', 'แผนกวิศวกรรม', true);
+
+-- Update department information
+UPDATE departments 
+SET department_name_th = 'แผนกเทคโนโลยีสารสนเทศใหม่', updated_at = NOW()
+WHERE department_code = 'IT';
+
+-- Deactivate a department (also affects all user roles in that department)
+UPDATE departments 
+SET is_active = false, updated_at = NOW()
+WHERE department_code = 'OLD_DEPT';
+```
+### Step 4: User Registration Process
+1. Users must be added to the `user_roles` table with department assignments before they can register
 2. Users use their assigned email to create an account via Supabase Auth
 3. The system automatically links their Supabase user account to their role
 4. Only pre-authorized emails can successfully register
 
 ## Testing the System
 
-### Test User Access Levels
+### Test User Access Levels with Department Support
 
 1. **Operational Level User**
    - Should only see their own data
    - Cannot select other team members
-   - Dashboard shows "Dashboard ส่วนบุคคล"
+   - Dashboard shows "Dashboard ส่วนบุคคล - [Department Name]"
+   - No department selector (only has access to one department)
 
 2. **Manager Level User**
-   - Can see own data and operational level users
-   - Can select from available team members
-   - Dashboard shows "Dashboard ระดับหัวหน้างาน"
+   - Can see own data and operational level users within same department
+   - Can select from available team members in their department
+   - Dashboard shows "Dashboard ระดับหัวหน้างาน - [Department Name]"
+   - May see department selector if assigned to multiple departments
 
 3. **Deputy Director Level User**
-   - Can see own + manager + operational level data
+   - Can see own + manager + operational level data within assigned departments
    - Can manage reports (create/update)
-   - Dashboard shows "Dashboard ระดับรองผู้อำนวยการ"
+   - Dashboard shows "Dashboard ระดับรองผู้อำนวยการ - [Department Name]"
+   - Department selector appears if assigned to multiple departments
+   - User list updates when switching departments
 
 4. **Director/Admin Level User**
-   - Can see all data
+   - Can see all data across all departments
    - Can manage and delete reports
    - Dashboard shows "Dashboard ระดับผู้อำนวยการ" or "Dashboard ผู้ดูแลระบบ"
+   - May see department context but has access to all data
+
+### Test Department Functionality
+
+1. **Single Department User**
+   - No department selector should appear
+   - Dashboard title includes department name
+   - User selection limited to department colleagues
+
+2. **Multi-Department User**
+   - Department selector dropdown should appear at top of dashboard
+   - Can switch between assigned departments
+   - User list and permissions update based on selected department
+   - User always appears first in user selection regardless of department
+
+3. **Department-Based Data Filtering**
+   - Manager in Dept A should not see users from Dept B
+   - Deputy Director with access to multiple departments should see different user lists when switching departments
+   - Directors should see all users regardless of department selection
 
 ### Test Authentication Flow
 

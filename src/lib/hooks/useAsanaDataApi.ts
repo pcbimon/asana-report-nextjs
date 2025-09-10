@@ -109,10 +109,10 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
   
-  // Get auth context for role-based filtering
-  const { user, userRole, permissions } = useAuth();
+  // Get auth context for role-based filtering with department support
+  const { user, userRole, permissions, currentDepartment } = useAuth();
 
-  // Role-filtered assignees based on user permissions
+  // Role-filtered assignees based on user permissions and department access
   const assignees = useMemo(() => {
     const allAssignees = report?.getAllAssignees() || [];
     
@@ -125,11 +125,11 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
       return allAssignees;
     }
 
-    // Filter assignees based on viewable emails
+    // Filter assignees based on viewable emails from current department
     return userRoleService.filterAssigneesByRole(allAssignees, permissions.viewableEmails);
-  }, [report, user, permissions]);
+  }, [report, user, permissions, currentDepartment]);
 
-  // Auto-select current user's data for operational level users
+  // Auto-select current user's data for operational level users, prioritizing current department
   const selectedAssignee = useMemo(() => {
     if (!selectedAssigneeGid && userRole?.role_level === UserRoleLevel.OPERATIONAL && user?.email) {
       // For operational users, auto-select their own data
@@ -141,7 +141,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     }
     
     return selectedAssigneeGid ? assignees.find(a => a.gid === selectedAssigneeGid) || null : null;
-  }, [selectedAssigneeGid, assignees, userRole, user]);
+  }, [selectedAssigneeGid, assignees, userRole, user, currentDepartment]);
   
   const assigneeStats = report && selectedAssigneeGid ? 
     processAssigneeStats(report, selectedAssigneeGid) : null;

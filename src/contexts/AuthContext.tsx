@@ -1,5 +1,5 @@
 /**
- * Authentication context for managing user authentication state with role-based access
+ * Authentication context for managing user authentication state with role-based access and department support
  */
 
 'use client';
@@ -8,26 +8,32 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '../lib/supabase';
 import { userRoleService } from '../lib/userRoleService';
-import { UserRoleInfo, RolePermissions, getRolePermissions } from '../types/userRoles';
+import { UserRoleInfo, RolePermissions, UserDepartment, getRolePermissions } from '../types/userRoles';
 
 interface AuthContextType {
   user: User | null;
   userRole: UserRoleInfo | null;
+  userDepartments: UserDepartment[];
+  currentDepartment: UserDepartment | null;
   permissions: RolePermissions | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshRole: () => Promise<void>;
+  setCurrentDepartment: (department: UserDepartment) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   userRole: null,
+  userDepartments: [],
+  currentDepartment: null,
   permissions: null,
   isLoading: true,
   signIn: async () => ({ error: null }),
   signOut: async () => {},
   refreshRole: async () => {},
+  setCurrentDepartment: async () => {},
 });
 
 export const useAuth = () => {
@@ -41,11 +47,38 @@ export const useAuth = () => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRoleInfo | null>(null);
+  const [userDepartments, setUserDepartments] = useState<UserDepartment[]>([]);
+  const [currentDepartment, setCurrentDepartmentState] = useState<UserDepartment | null>(null);
   const [permissions, setPermissions] = useState<RolePermissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Function to load user role and permissions
-  const loadUserRole = async (currentUser: User | null) => {
+  // Function to load user departments and set default department
+  const loadUserDepartments = async (currentUser: User | null) => {
+    if (!currentUser?.email) {
+      setUserDepartments([]);
+      setCurrentDepartmentState(null);
+      return;
+    }
+
+    try {
+      const departments = await userRoleService.getUserDepartments(currentUser.email);
+      setUserDepartments(departments);
+      
+      // Set the first department as default (highest role level)
+      const defaultDepartment = departments.length > 0 ? departments[0] : null;
+      setCurrentDepartmentState(defaultDepartment);
+      
+      return defaultDepartment;
+    } catch (error) {
+      console.error('Error loading user departments:', error);
+      setUserDepartments([]);
+      setCurrentDepartmentState(null);
+      return null;
+    }
+  };
+
+  // Function to load user role and permissions for the current department
+  const loadUserRole = async (currentUser: User | null, departmentId?: number) => {
     if (!currentUser?.email) {
       setUserRole(null);
       setPermissions(null);
@@ -53,11 +86,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const roleInfo = await userRoleService.getUserRole(currentUser.email);
+      const roleInfo = await userRoleService.getUserRole(currentUser.email, departmentId);
       setUserRole(roleInfo);
       
       if (roleInfo) {
-        const userPermissions = getRolePermissions(roleInfo.role_level, roleInfo.can_view_emails);
+        const userPermissions = getRolePermissions(
+          roleInfo.role_level, 
+          roleInfo.can_view_emails,
+          currentDepartment || undefined,
+          userDepartments.length > 1
+        );
         setPermissions(userPermissions);
       } else {
         setPermissions(null);
@@ -70,7 +108,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshRole = async () => {
-    await loadUserRole(user);
+    await loadUserRole(user, currentDepartment?.department_id);
+  };
+
+  const setCurrentDepartment = async (department: UserDepartment) => {
+    setCurrentDepartmentState(department);
+    await loadUserRole(user, department.department_id);
   };
 
   useEffect(() => {
@@ -90,8 +133,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       
-      // Load user role after setting user
-      await loadUserRole(currentUser);
+      // Load user departments and role after setting user
+      const defaultDepartment = await loadUserDepartments(currentUser);
+      await loadUserRole(currentUser, defaultDepartment?.department_id);
       setIsLoading(false);
     };
 
@@ -103,8 +147,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
         
-        // Load user role after auth state change
-        await loadUserRole(currentUser);
+        // Load user departments and role after auth state change
+        const defaultDepartment = await loadUserDepartments(currentUser);
+        await loadUserRole(currentUser, defaultDepartment?.department_id);
         setIsLoading(false);
       }
     );
@@ -136,7 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // If sign in successful, link user to role and load role info
     if (!error && data.user) {
       await userRoleService.linkUserToRole(email, data.user.id);
-      await loadUserRole(data.user);
+      const defaultDepartment = await loadUserDepartments(data.user);
+      await loadUserRole(data.user, defaultDepartment?.department_id);
       
       return new Promise(resolve => {
         setTimeout(() => resolve({ error: null }), 500);
@@ -157,19 +203,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
     await supabase.auth.signOut();
     
-    // Clear role info on sign out
+    // Clear role and department info on sign out
     setUserRole(null);
+    setUserDepartments([]);
+    setCurrentDepartmentState(null);
     setPermissions(null);
   };
 
   const value = {
     user,
     userRole,
+    userDepartments,
+    currentDepartment,
     permissions,
     isLoading,
     signIn,
     signOut,
     refreshRole,
+    setCurrentDepartment,
   };
 
   return (

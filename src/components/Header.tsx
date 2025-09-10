@@ -11,6 +11,7 @@ import { getCacheInfo } from '../lib/supabaseStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { RefreshCw, Download } from 'lucide-react';
+import { getDepartmentDisplayName } from '../types/userRoles';
 
 interface HeaderProps {
   assignee?: Assignee;
@@ -25,7 +26,7 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
     lastUpdated: string;
   } | null>(null);
   
-  const { user, userRole, signOut } = useAuth();
+  const { user, userRole, currentDepartment, signOut } = useAuth();
 
   // Load cache info
   useEffect(() => {
@@ -110,7 +111,10 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
                     </div>
                     {userRole && (
                       <div className="text-xs text-gray-500 mt-1">
-                        Role: {userRole.role_name}
+                        <div>Role: {userRole.role_name}</div>
+                        {currentDepartment && (
+                          <div>Department: {getDepartmentDisplayName(currentDepartment)}</div>
+                        )}
                       </div>
                     )}
                   </div>
