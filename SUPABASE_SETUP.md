@@ -22,7 +22,7 @@ This guide will help you set up Supabase for the Asana Dashboard application.
 1. In your Supabase dashboard, go to Settings > API
 2. Copy the following values:
    - **Project URL** (looks like `https://xxxxxxxxxx.supabase.co`)
-   - **Anon (public) key** (starts with `eyJ...`)
+   - **Publishable key** (starts with `eyJ...`)
 
 ## Step 3: Set Up the Database
 
@@ -47,7 +47,7 @@ RATE_LIMIT=150
 
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 NEXT_DB_URL=your_supabase_database_url_here
 
 # Admin Authentication

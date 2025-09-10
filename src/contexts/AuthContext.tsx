@@ -6,7 +6,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { createClient } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -35,27 +35,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    
+    if (!supabaseUrl || !supabasePublishableKey) {
       setIsLoading(false);
       return;
     }
 
+    const supabase = createClient();
+
     // Get initial session
     const getInitialSession = async () => {
-      if (!supabase) {
-        setIsLoading(false);
-        return;
-      }
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
       setIsLoading(false);
     };
 
     getInitialSession();
-
-    if (!supabase) {
-      return;
-    }
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -69,9 +66,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: any }> => {
-    if (!supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    
+    if (!supabaseUrl || !supabasePublishableKey) {
       return { error: { message: 'Supabase not configured' } };
     }
+
+    const supabase = createClient();
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -89,9 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    if (!supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    
+    if (!supabaseUrl || !supabasePublishableKey) {
       return;
     }
+
+    const supabase = createClient();
     await supabase.auth.signOut();
   };
 
