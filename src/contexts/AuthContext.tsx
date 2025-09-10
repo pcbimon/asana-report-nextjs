@@ -1,5 +1,5 @@
 /**
- * Authentication context for managing user authentication state
+ * Authentication context for managing user authentication state with role-based access
  */
 
 'use client';
@@ -7,19 +7,27 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '../lib/supabase';
+import { userRoleService } from '../lib/userRoleService';
+import { UserRoleInfo, RolePermissions, getRolePermissions } from '../types/userRoles';
 
 interface AuthContextType {
   user: User | null;
+  userRole: UserRoleInfo | null;
+  permissions: RolePermissions | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshRole: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  userRole: null,
+  permissions: null,
   isLoading: true,
   signIn: async () => ({ error: null }),
   signOut: async () => {},
+  refreshRole: async () => {},
 });
 
 export const useAuth = () => {
@@ -32,7 +40,38 @@ export const useAuth = () => {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRoleInfo | null>(null);
+  const [permissions, setPermissions] = useState<RolePermissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Function to load user role and permissions
+  const loadUserRole = async (currentUser: User | null) => {
+    if (!currentUser?.email) {
+      setUserRole(null);
+      setPermissions(null);
+      return;
+    }
+
+    try {
+      const roleInfo = await userRoleService.getUserRole(currentUser.email);
+      setUserRole(roleInfo);
+      
+      if (roleInfo) {
+        const userPermissions = getRolePermissions(roleInfo.role_level, roleInfo.can_view_emails);
+        setPermissions(userPermissions);
+      } else {
+        setPermissions(null);
+      }
+    } catch (error) {
+      console.error('Error loading user role:', error);
+      setUserRole(null);
+      setPermissions(null);
+    }
+  };
+
+  const refreshRole = async () => {
+    await loadUserRole(user);
+  };
 
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -48,7 +87,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session
     const getInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      
+      // Load user role after setting user
+      await loadUserRole(currentUser);
       setIsLoading(false);
     };
 
@@ -57,7 +100,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setUser(session?.user ?? null);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        
+        // Load user role after auth state change
+        await loadUserRole(currentUser);
         setIsLoading(false);
       }
     );
@@ -73,15 +120,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: { message: 'Supabase not configured' } };
     }
 
+    // Check if email is authorized before attempting sign in
+    const isAuthorized = await userRoleService.isEmailAuthorized(email);
+    if (!isAuthorized) {
+      return { error: { message: 'อีเมลนี้ไม่ได้รับอนุญาตให้เข้าใช้ระบบ' } };
+    }
+
     const supabase = createClient();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
-    // Wait a bit for the session to be established
-    if (!error) {
+    // If sign in successful, link user to role and load role info
+    if (!error && data.user) {
+      await userRoleService.linkUserToRole(email, data.user.id);
+      await loadUserRole(data.user);
+      
       return new Promise(resolve => {
         setTimeout(() => resolve({ error: null }), 500);
       });
@@ -100,13 +156,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const supabase = createClient();
     await supabase.auth.signOut();
+    
+    // Clear role info on sign out
+    setUserRole(null);
+    setPermissions(null);
   };
 
   const value = {
     user,
+    userRole,
+    permissions,
     isLoading,
     signIn,
     signOut,
+    refreshRole,
   };
 
   return (

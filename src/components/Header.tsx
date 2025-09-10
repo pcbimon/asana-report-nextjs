@@ -25,7 +25,7 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
     lastUpdated: string;
   } | null>(null);
   
-  const { user, signOut } = useAuth();
+  const { user, userRole, signOut } = useAuth();
 
   // Load cache info
   useEffect(() => {
@@ -103,8 +103,17 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
             {user && (
               <div className="flex items-center space-x-2">
                 <div className="hidden sm:block text-sm text-gray-700">
-                  <span>Signed in as: </span>
-                  <span className="font-medium">{user.email}</span>
+                  <div className="text-right">
+                    <div>
+                      <span>Signed in as: </span>
+                      <span className="font-medium">{user.email}</span>
+                    </div>
+                    {userRole && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Role: {userRole.role_name}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <Button
                   variant="outline"

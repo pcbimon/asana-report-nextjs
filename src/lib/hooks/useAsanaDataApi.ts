@@ -1,5 +1,5 @@
 /**
- * Custom hook for managing Asana data fetching via API routes
+ * Custom hook for managing Asana data fetching via API routes with role-based access
  * This replaces direct AsanaApiClient usage with server-side API calls
  */
 
@@ -14,6 +14,9 @@ import {
   clearCache,
   loadUserPreferences
 } from '../supabaseStorage';
+import { useAuth } from '../../contexts/AuthContext';
+import { userRoleService } from '../userRoleService';
+import { UserRoleLevel } from '../../types/userRoles';
 
 export interface LoadingProgress {
   current: number;
@@ -105,13 +108,40 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
+  
+  // Get auth context for role-based filtering
+  const { user, userRole, permissions } = useAuth();
 
-  // Derived data
-  const assignees = useMemo(() => report?.getAllAssignees() || [], [report]);
-  const selectedAssignee = useMemo(() => 
-    selectedAssigneeGid ? assignees.find(a => a.gid === selectedAssigneeGid) || null : null,
-    [selectedAssigneeGid, assignees]
-  );
+  // Role-filtered assignees based on user permissions
+  const assignees = useMemo(() => {
+    const allAssignees = report?.getAllAssignees() || [];
+    
+    if (!user?.email || !permissions) {
+      return [];
+    }
+
+    // If user can view all data (Director/Admin), return all assignees
+    if (permissions.canViewAllData) {
+      return allAssignees;
+    }
+
+    // Filter assignees based on viewable emails
+    return userRoleService.filterAssigneesByRole(allAssignees, permissions.viewableEmails);
+  }, [report, user, permissions]);
+
+  // Auto-select current user's data for operational level users
+  const selectedAssignee = useMemo(() => {
+    if (!selectedAssigneeGid && userRole?.role_level === UserRoleLevel.OPERATIONAL && user?.email) {
+      // For operational users, auto-select their own data
+      const userAssignee = assignees.find(a => a.email === user.email);
+      if (userAssignee) {
+        setSelectedAssigneeGid(userAssignee.gid);
+        return userAssignee;
+      }
+    }
+    
+    return selectedAssigneeGid ? assignees.find(a => a.gid === selectedAssigneeGid) || null : null;
+  }, [selectedAssigneeGid, assignees, userRole, user]);
   
   const assigneeStats = report && selectedAssigneeGid ? 
     processAssigneeStats(report, selectedAssigneeGid) : null;
@@ -230,8 +260,18 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   }, [fetchFromApi]);
 
   const selectAssignee = useCallback(async (assigneeGid: string) => {
+    // Check if user has permission to select this assignee
+    if (!permissions?.canSelectUsers && userRole?.role_level === UserRoleLevel.OPERATIONAL) {
+      // Operational users can only view their own data
+      const userAssignee = assignees.find(a => a.email === user?.email);
+      if (userAssignee && assigneeGid !== userAssignee.gid) {
+        console.warn('Operational users can only view their own data');
+        return;
+      }
+    }
+    
     setSelectedAssigneeGid(assigneeGid);
-  }, []);
+  }, [permissions, userRole, assignees, user]);
 
   const fetchData = useCallback(async () => {
     return loadData();
