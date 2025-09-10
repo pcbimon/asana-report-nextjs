@@ -168,11 +168,12 @@ export default function DashboardPage() {
             {/* Tasks Table */}
             <section>
               <CurrentTasksTable
-                tasks={assigneeStats.assignee ? 
-                  report?.getAssigneeData(assigneeStats.assignee.gid).tasks || [] : []}
-                subtasks={assigneeStats.assignee ? 
-                  report?.getAssigneeData(assigneeStats.assignee.gid).subtasks || [] : []}
+                subtasks={assigneeStats.assignee && report ? (() => {
+                  const userData = report.getUserData(assigneeStats.assignee.gid);
+                  return [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+                })() : []}
                 isLoading={isLoading}
+                userGid={assigneeStats.assignee?.gid}
               />
             </section>
           </div>
@@ -256,7 +257,6 @@ export default function DashboardPage() {
                 />
                 
                 <CurrentTasksTable 
-                  tasks={[]} 
                   subtasks={[]} 
                   isLoading={true} 
                 />
