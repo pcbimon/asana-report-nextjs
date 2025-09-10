@@ -19,6 +19,7 @@ export interface AssigneeStats {
   completionRate: number;
   averageTimePerTask: number;
   weeklyData: WeeklyTaskData[];
+  monthlyData: MonthlyTaskData[];
   projectDistribution: ProjectDistribution[];
   statusDistribution: StatusDistribution[];
 }
@@ -26,6 +27,13 @@ export interface AssigneeStats {
 export interface WeeklyTaskData {
   week: string;
   weekStart: string;
+  assigned: number;
+  completed: number;
+}
+
+export interface MonthlyTaskData {
+  month: string;
+  monthStart: string;
   assigned: number;
   completed: number;
 }
@@ -55,7 +63,7 @@ export interface TeamAverages {
 export function processAssigneeStats(
   report: AsanaReport, 
   assigneeGid: string,
-  weeksToAnalyze: number = 12
+  weeksToAnalyze: number = 52
 ): AssigneeStats | null {
   const assigneeData = report.getAssigneeData(assigneeGid);
   const assignee = report.getAllAssignees().find(a => a.gid === assigneeGid);
@@ -65,6 +73,7 @@ export function processAssigneeStats(
   }
 
   const weeklyData = generateWeeklyData(assigneeData.tasks, assigneeData.subtasks, weeksToAnalyze);
+  const monthlyData = generateMonthlyData(assigneeData.tasks, assigneeData.subtasks, 12); // 12 months
   const projectDistribution = generateProjectDistribution(assigneeData.tasks, assigneeData.subtasks, report);
   const statusDistribution = generateStatusDistribution(assigneeData.tasks, assigneeData.subtasks);
 
@@ -76,6 +85,7 @@ export function processAssigneeStats(
     completionRate: assigneeData.completionRate,
     averageTimePerTask: assigneeData.averageTimePerTask,
     weeklyData,
+    monthlyData,
     projectDistribution,
     statusDistribution
   };
@@ -128,7 +138,7 @@ function generateWeeklyData(
   // Initialize weeks
   for (let i = weeks - 1; i >= 0; i--) {
     const weekStart = dayjs().subtract(i, 'week').startOf('isoWeek');
-    const weekKey = weekStart.format('YYYY-WW');
+    const weekKey = weekStart.format('YYYY') + '-W' + weekStart.isoWeek().toString().padStart(2, '0');
     weeklyMap.set(weekKey, {
       assigned: 0,
       completed: 0,
@@ -140,7 +150,8 @@ function generateWeeklyData(
   [...tasks, ...subtasks].forEach(item => {
     // Count assigned (based on creation date)
     if (item.created_at) {
-      const createdWeek = dayjs(item.created_at).startOf('isoWeek').format('YYYY-WW');
+      const createdDate = dayjs(item.created_at).startOf('isoWeek');
+      const createdWeek = createdDate.format('YYYY') + '-W' + createdDate.isoWeek().toString().padStart(2, '0');
       const weekData = weeklyMap.get(createdWeek);
       if (weekData) {
         weekData.assigned++;
@@ -149,7 +160,8 @@ function generateWeeklyData(
 
     // Count completed
     if (item.completed && item.completed_at) {
-      const completedWeek = dayjs(item.completed_at).startOf('isoWeek').format('YYYY-WW');
+      const completedDate = dayjs(item.completed_at).startOf('isoWeek');
+      const completedWeek = completedDate.format('YYYY') + '-W' + completedDate.isoWeek().toString().padStart(2, '0');
       const weekData = weeklyMap.get(completedWeek);
       if (weekData) {
         weekData.completed++;
@@ -162,6 +174,58 @@ function generateWeeklyData(
     .map(([week, data]) => ({
       week,
       weekStart: data.weekStart,
+      assigned: data.assigned,
+      completed: data.completed
+    }));
+}
+
+/**
+ * Generate monthly task data
+ */
+function generateMonthlyData(
+  tasks: Task[], 
+  subtasks: Subtask[], 
+  months: number
+): MonthlyTaskData[] {
+  const monthlyMap = new Map<string, { assigned: number; completed: number; monthStart: string }>();
+  
+  // Initialize months
+  for (let i = months - 1; i >= 0; i--) {
+    const monthStart = dayjs().subtract(i, 'month').startOf('month');
+    const monthKey = monthStart.format('YYYY-MM');
+    monthlyMap.set(monthKey, {
+      assigned: 0,
+      completed: 0,
+      monthStart: monthStart.format('YYYY-MM-DD')
+    });
+  }
+
+  // Process tasks
+  [...tasks, ...subtasks].forEach(item => {
+    // Count assigned (based on creation date)
+    if (item.created_at) {
+      const createdMonth = dayjs(item.created_at).startOf('month').format('YYYY-MM');
+      const monthData = monthlyMap.get(createdMonth);
+      if (monthData) {
+        monthData.assigned++;
+      }
+    }
+
+    // Count completed
+    if (item.completed && item.completed_at) {
+      const completedMonth = dayjs(item.completed_at).startOf('month').format('YYYY-MM');
+      const monthData = monthlyMap.get(completedMonth);
+      if (monthData) {
+        monthData.completed++;
+      }
+    }
+  });
+
+  return Array.from(monthlyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, data]) => ({
+      month,
+      monthStart: data.monthStart,
       assigned: data.assigned,
       completed: data.completed
     }));

@@ -38,9 +38,9 @@ This guide will help you set up Supabase for the Asana Dashboard application.
 
 ```env
 # Asana API Configuration
-NEXT_PUBLIC_ASANA_TOKEN=your_asana_personal_access_token
-NEXT_PUBLIC_ASANA_PROJECT_ID=your_asana_project_id
-NEXT_PUBLIC_TEAM_ID=your_asana_team_id
+NEXT_ASANA_TOKEN=your_asana_personal_access_token
+NEXT_ASANA_PROJECT_ID=your_asana_project_id
+NEXT_ASANA_TEAM_ID=your_asana_team_id
 
 # Rate limiting configuration
 RATE_LIMIT=150
@@ -48,7 +48,6 @@ RATE_LIMIT=150
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-NEXT_DB_URL=your_supabase_database_url_here
 
 # Admin Authentication
 NEXT_ADMIN_PWD=your_secure_admin_password

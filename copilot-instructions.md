@@ -84,19 +84,29 @@ Testing & quality
 - Linting: ESLint + Prettier. Type-check CI step.
 
 Environment & setup
-1. Create .env.local:
-   - NEXT_PUBLIC_ASANA_BASE_URL=https://app.asana.com/api/1.0
-   - NEXT_PUBLIC_ASANA_TOKEN=your_pat_here
-   - NEXT_PUBLIC_ASANA_PROJECT_ID=your_project_id
-2. Install:
-   - npm install
-   - npm install echarts echarts-for-react tailwindcss axios dayjs js-cookie xlsx html2canvas jspdf
-3. Tailwind init:
-   - npx tailwindcss init -p, configure content paths.
-4. Run:
-   - npm run dev
-5. Build:
-   - npm run build && npm run start
+Note: If you've already added your environment secrets in your deployment/provider (for example Vercel, Netlify, or your CI), do NOT create a local .env.local that contains sensitive tokens. Read env keys from the provider-managed environment instead and access them server-side.
+
+1. Environment variables (use server-side secrets)
+   - Suggested server-only variable names (do NOT prefix with NEXT_PUBLIC_ for secrets):
+     - ASANA_BASE_URL=https://app.asana.com/api/1.0
+     - ASANA_TOKEN=your_pat_here
+     - ASANA_PROJECT_ID=your_project_id
+   - How to use: read these with `process.env.ASANA_TOKEN` etc. from Next.js API routes or server components. Avoid shipping `ASANA_TOKEN` to the client; proxy Asana requests through an API route that uses the server env.
+
+2. If you must expose non-sensitive values to the client, use a non-secret variable prefixed with `NEXT_PUBLIC_` (only for public, non-sensitive values). Prefer exposing data through an API route instead of exposing tokens.
+
+3. Install:
+  - yarn install
+  - yarn add echarts echarts-for-react tailwindcss axios dayjs js-cookie xlsx html2canvas jspdf
+
+4. Tailwind init:
+  - yarn tailwindcss init -p # หรือ npx tailwindcss init -p, แล้ว configure content paths.
+
+5. Run:
+  - yarn dev
+
+6. Build:
+  - yarn build && yarn start
 
 Performance considerations
 - Paginate API calls if many tasks.

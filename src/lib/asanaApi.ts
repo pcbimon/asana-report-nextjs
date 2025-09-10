@@ -78,15 +78,15 @@ export class AsanaApiClient {
 
   constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_ASANA_BASE_URL || 'https://app.asana.com/api/1.0';
-    this.token = process.env.NEXT_PUBLIC_ASANA_TOKEN || '';
-    this.projectId = process.env.NEXT_PUBLIC_ASANA_PROJECT_ID || '';
+    this.token = process.env.NEXT_ASANA_TOKEN || '';
+    this.projectId = process.env.NEXT_ASANA_PROJECT_ID || '';
 
     // Calculate rate limit delay from environment variable
     const rateLimit = parseInt(process.env.RATE_LIMIT || '150', 10); // requests per minute
     this.rateLimitDelay = Math.ceil(60000 / rateLimit); // Convert to milliseconds between requests
 
     if (!this.token || !this.projectId) {
-      throw new Error('Missing required environment variables: NEXT_PUBLIC_ASANA_TOKEN and NEXT_PUBLIC_ASANA_PROJECT_ID');
+      throw new Error('Missing required environment variables: NEXT_ASANA_TOKEN and NEXT_ASANA_PROJECT_ID');
     }
 
     this.client = axios.create({
@@ -149,9 +149,9 @@ export class AsanaApiClient {
    */
   async fetchTeamUsers(): Promise<Assignee[]> {
     try {
-      const teamId = process.env.NEXT_PUBLIC_TEAM_ID;
+      const teamId = process.env.NEXT_ASANA_TEAM_ID;
       if (!teamId) {
-        console.warn('NEXT_PUBLIC_TEAM_ID not configured, falling back to task-based assignees');
+        console.warn('NEXT_ASANA_TEAM_ID not configured, falling back to task-based assignees');
         return [];
       }
 

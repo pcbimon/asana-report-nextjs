@@ -58,13 +58,13 @@ export default function DashboardPage() {
                 <li>Add your Asana Personal Access Token:</li>
                 <li className="ml-4">
                   <code className="bg-gray-200 px-2 py-1 rounded text-xs">
-                    NEXT_PUBLIC_ASANA_TOKEN=your_token_here
+                    NEXT_ASANA_TOKEN=your_token_here
                   </code>
                 </li>
                 <li>Add your Project ID:</li>
                 <li className="ml-4">
                   <code className="bg-gray-200 px-2 py-1 rounded text-xs">
-                    NEXT_PUBLIC_ASANA_PROJECT_ID=your_project_id
+                    NEXT_ASANA_PROJECT_ID=your_project_id
                   </code>
                 </li>
                 <li>Restart the development server</li>
@@ -148,6 +148,7 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2">
                   <WeeklySummaryChart
                     weeklyData={assigneeStats.weeklyData}
+                    monthlyData={assigneeStats.monthlyData}
                     teamAverage={teamAverages?.averageTasksPerWeek}
                     isLoading={isLoading}
                   />
@@ -244,7 +245,7 @@ export default function DashboardPage() {
                 {/* Charts Skeleton */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="lg:col-span-2">
-                    <WeeklySummaryChart weeklyData={[]} isLoading={true} />
+                    <WeeklySummaryChart weeklyData={[]} monthlyData={[]} isLoading={true} />
                   </div>
                 </div>
                 
