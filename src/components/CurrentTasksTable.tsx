@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Task, Subtask, Follower } from '../models/asanaReport';
+import { Subtask, Follower } from '../models/asanaReport';
 import dayjs from 'dayjs';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -19,7 +19,6 @@ import {
 } from '../../components/ui/select';
 
 interface CurrentTasksTableProps {
-  tasks: Task[];
   subtasks: Subtask[];
   isLoading?: boolean;
   userGid?: string; // Current user's GID to determine relationship type
@@ -44,7 +43,6 @@ type SortField = 'name' | 'dueDate' | 'completed' | 'project' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 export default function CurrentTasksTable({ 
-  tasks, 
   subtasks, 
   isLoading = false,
   userGid
@@ -60,39 +58,8 @@ export default function CurrentTasksTable({
   const taskItems: TaskItem[] = useMemo(() => {
     const items: TaskItem[] = [];
 
-    // Add tasks
-    tasks.forEach(task => {
-      // Determine relationship for this task
-      const isAssignee = task.assignee?.gid === userGid;
-      
-      // For tasks, show as collaborator if user is follower on any subtask but not the main task assignee
-      const relationship: 'assignee' | 'collaborator' = isAssignee ? 'assignee' : 'collaborator';
-      
-      // Get all unique collaborators from subtasks
-      const allCollaborators = new Map<string, Follower>();
-      task.subtasks.forEach(subtask => {
-        subtask.followers.forEach(follower => {
-          allCollaborators.set(follower.gid, follower);
-        });
-      });
-
-      items.push({
-        id: task.gid,
-        name: task.name,
-        type: 'task',
-        completed: task.completed,
-        dueDate: task.due_on,
-        project: task.project,
-        priority: task.priority,
-        isOverdue: task.isOverdue(),
-        createdAt: task.created_at,
-        completedAt: task.completed_at,
-        relationship,
-        collaborators: Array.from(allCollaborators.values())
-      });
-    });
-
-    // Add subtasks
+    // Only add subtasks - main tasks are not displayed anymore
+    // Show subtasks as "Task" type since they are now the primary items
     subtasks.forEach(subtask => {
       // Determine relationship for this subtask
       const isAssignee = subtask.assignee?.gid === userGid;
@@ -103,7 +70,7 @@ export default function CurrentTasksTable({
       items.push({
         id: subtask.gid,
         name: subtask.name,
-        type: 'subtask',
+        type: 'task', // Display subtasks as tasks now
         completed: subtask.completed,
         isOverdue: subtask.isOverdue(),
         createdAt: subtask.created_at,
@@ -114,7 +81,7 @@ export default function CurrentTasksTable({
     });
 
     return items;
-  }, [tasks, subtasks, userGid]);
+  }, [subtasks, userGid]);
 
   // Filter and sort items
   const filteredAndSortedItems = useMemo(() => {
@@ -373,10 +340,8 @@ export default function CurrentTasksTable({
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    item.type === 'task' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                  }`}>
-                    {item.type === 'task' ? 'Task' : 'Subtask'}
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Task
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

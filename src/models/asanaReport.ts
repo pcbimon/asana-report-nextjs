@@ -293,7 +293,7 @@ export class AsanaReport {
   }
 
   /**
-   * Get all tasks and subtasks for a specific assignee
+   * Get all subtasks for a specific assignee (tasks from fetchTasksInSection are not displayed)
    */
   getAssigneeData(assigneeGid: string): {
     tasks: Task[];
@@ -304,17 +304,12 @@ export class AsanaReport {
     completionRate: number;
     averageTimePerTask: number;
   } {
-    const tasks: Task[] = [];
+    const tasks: Task[] = []; // Empty - we don't display main tasks
     const subtasks: Subtask[] = [];
 
     this.sections.forEach(section => {
       section.tasks.forEach(task => {
-        // Check if task is assigned to the assignee
-        if (task.assignee?.gid === assigneeGid) {
-          tasks.push(task);
-        }
-
-        // Check subtasks
+        // Don't include main tasks - only check subtasks
         task.subtasks.forEach(subtask => {
           if (subtask.assignee?.gid === assigneeGid) {
             subtasks.push(subtask);
@@ -323,20 +318,16 @@ export class AsanaReport {
       });
     });
 
-    const totalTasks = tasks.length + subtasks.length;
-    const completedTasks = tasks.filter(t => t.completed).length + subtasks.filter(st => st.completed).length;
-    const overdueTasks = tasks.filter(t => t.isOverdue()).length + subtasks.filter(st => st.isOverdue()).length;
+    const totalTasks = subtasks.length; // Only count subtasks
+    const completedTasks = subtasks.filter(st => st.completed).length;
+    const overdueTasks = subtasks.filter(st => st.isOverdue()).length;
     const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
-    // Calculate average time per task
-    const completedTasksWithTime = tasks.filter(t => t.completed && t.getTotalTimeSpent() > 0);
+    // Calculate average time per task (only from subtasks)
     const completedSubtasksWithTime = subtasks.filter(st => st.completed && st.getTimeSpent() > 0);
     
-    const totalTimeSpent = 
-      completedTasksWithTime.reduce((sum, t) => sum + t.getTotalTimeSpent(), 0) +
-      completedSubtasksWithTime.reduce((sum, st) => sum + st.getTimeSpent(), 0);
-    
-    const totalCompletedWithTime = completedTasksWithTime.length + completedSubtasksWithTime.length;
+    const totalTimeSpent = completedSubtasksWithTime.reduce((sum, st) => sum + st.getTimeSpent(), 0);
+    const totalCompletedWithTime = completedSubtasksWithTime.length;
     const averageTimePerTask = totalCompletedWithTime > 0 ? totalTimeSpent / totalCompletedWithTime : 0;
 
     return {
@@ -351,7 +342,7 @@ export class AsanaReport {
   }
 
   /**
-   * Get all tasks and subtasks where user is a collaborator (follower)
+   * Get all subtasks where user is a collaborator (follower) - main tasks are not displayed
    */
   getCollaboratorData(userGid: string): {
     tasks: Task[];
@@ -362,22 +353,12 @@ export class AsanaReport {
     completionRate: number;
     averageTimePerTask: number;
   } {
-    const tasks: Task[] = [];
+    const tasks: Task[] = []; // Empty - we don't display main tasks
     const subtasks: Subtask[] = [];
 
     this.sections.forEach(section => {
       section.tasks.forEach(task => {
-        // Check if any subtask has the user as a follower (collaborator)
-        const hasCollaboratorSubtasks = task.subtasks.some(subtask => 
-          subtask.followers.some(follower => follower.gid === userGid)
-        );
-        
-        // If user is a collaborator on any subtask, include the whole task
-        if (hasCollaboratorSubtasks) {
-          tasks.push(task);
-        }
-
-        // Also check individual subtasks where user is a follower
+        // Only check individual subtasks where user is a follower
         task.subtasks.forEach(subtask => {
           const isCollaborator = subtask.followers.some(follower => follower.gid === userGid);
           const isNotAssignee = subtask.assignee?.gid !== userGid; // Don't double-count assignees
@@ -389,20 +370,16 @@ export class AsanaReport {
       });
     });
 
-    const totalTasks = tasks.length + subtasks.length;
-    const completedTasks = tasks.filter(t => t.completed).length + subtasks.filter(st => st.completed).length;
-    const overdueTasks = tasks.filter(t => t.isOverdue()).length + subtasks.filter(st => st.isOverdue()).length;
+    const totalTasks = subtasks.length; // Only count subtasks
+    const completedTasks = subtasks.filter(st => st.completed).length;
+    const overdueTasks = subtasks.filter(st => st.isOverdue()).length;
     const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
-    // Calculate average time per task
-    const completedTasksWithTime = tasks.filter(t => t.completed && t.getTotalTimeSpent() > 0);
+    // Calculate average time per task (only from subtasks)
     const completedSubtasksWithTime = subtasks.filter(st => st.completed && st.getTimeSpent() > 0);
     
-    const totalTimeSpent = 
-      completedTasksWithTime.reduce((sum, t) => sum + t.getTotalTimeSpent(), 0) +
-      completedSubtasksWithTime.reduce((sum, st) => sum + st.getTimeSpent(), 0);
-    
-    const totalCompletedWithTime = completedTasksWithTime.length + completedSubtasksWithTime.length;
+    const totalTimeSpent = completedSubtasksWithTime.reduce((sum, st) => sum + st.getTimeSpent(), 0);
+    const totalCompletedWithTime = completedSubtasksWithTime.length;
     const averageTimePerTask = totalCompletedWithTime > 0 ? totalTimeSpent / totalCompletedWithTime : 0;
 
     return {
@@ -417,7 +394,7 @@ export class AsanaReport {
   }
 
   /**
-   * Get combined assignee and collaborator data for a user
+   * Get combined assignee and collaborator data for a user (only subtasks are displayed)
    */
   getUserData(userGid: string): {
     assigneeData: {
@@ -448,6 +425,7 @@ export class AsanaReport {
     const assigneeData = this.getAssigneeData(userGid);
     const collaboratorData = this.getCollaboratorData(userGid);
     
+    // Since we only show subtasks, the totals are just the subtask counts
     const combinedTotalTasks = assigneeData.totalTasks + collaboratorData.totalTasks;
     const combinedCompletedTasks = assigneeData.completedTasks + collaboratorData.completedTasks;
     const combinedOverdueTasks = assigneeData.overdueTasks + collaboratorData.overdueTasks;
@@ -466,7 +444,7 @@ export class AsanaReport {
   }
 
   /**
-   * Get weekly task summary for an assignee
+   * Get weekly task summary for an assignee (only subtasks)
    */
   getWeeklyTaskSummary(assigneeGid: string, weeks: number = 12): {
     week: string;
@@ -474,7 +452,8 @@ export class AsanaReport {
     completed: number;
   }[] {
     const assigneeData = this.getAssigneeData(assigneeGid);
-    const allItems = [...assigneeData.tasks, ...assigneeData.subtasks];
+    // Only use subtasks since main tasks are not displayed
+    const allItems = assigneeData.subtasks;
     
     const weeklyData: { [key: string]: { assigned: number; completed: number } } = {};
     
@@ -544,16 +523,15 @@ export class AsanaReport {
   }
 
   /**
-   * Get task distribution by status for an assignee
+   * Get task distribution by status for an assignee (only subtasks)
    */
   getTaskDistributionByStatus(assigneeGid: string): { status: string; count: number }[] {
     const assigneeData = this.getAssigneeData(assigneeGid);
-    const allItems = [...assigneeData.tasks, ...assigneeData.subtasks];
+    // Only use subtasks since main tasks are not displayed
+    const allItems = assigneeData.subtasks;
     
     const completed = allItems.filter(item => item.completed).length;
-    const overdue = allItems.filter(item => 
-      'isOverdue' in item ? item.isOverdue() : false
-    ).length;
+    const overdue = allItems.filter(item => item.isOverdue()).length;
     const inProgress = allItems.length - completed - overdue;
 
     return [

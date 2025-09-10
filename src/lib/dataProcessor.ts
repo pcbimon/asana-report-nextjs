@@ -3,7 +3,7 @@
  * Handles data aggregation, filtering, and calculations
  */
 
-import { AsanaReport, Assignee, Task, Subtask } from '../models/asanaReport';
+import { AsanaReport, Assignee, Subtask } from '../models/asanaReport';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import isoWeek from 'dayjs/plugin/isoWeek';
@@ -72,9 +72,9 @@ export function processAssigneeStats(
     return null;
   }
 
-  // Combine assignee and collaborator tasks for complete view
-  const allTasks = [...userData.assigneeData.tasks, ...userData.collaboratorData.tasks];
-  const allSubtasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+  // Combine assignee and collaborator subtasks for complete view (main tasks are not displayed)
+  const allTasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+  const allSubtasks: Subtask[] = []; // Empty since we only use subtasks as tasks now
 
   const weeklyData = generateWeeklyData(allTasks, allSubtasks, weeksToAnalyze);
   const monthlyData = generateMonthlyData(allTasks, allSubtasks, 12); // 12 months
@@ -87,7 +87,7 @@ export function processAssigneeStats(
     completedTasks: userData.combined.completedTasks,
     overdueTasks: userData.combined.overdueTasks,
     completionRate: userData.combined.completionRate,
-    averageTimePerTask: (userData.assigneeData.averageTimePerTask + userData.collaboratorData.averageTimePerTask) / 2,
+    averageTimePerTask: userData.assigneeData.averageTimePerTask, // Only from subtasks now
     weeklyData,
     monthlyData,
     projectDistribution,
@@ -112,9 +112,9 @@ export function calculateTeamAverages(report: AsanaReport): TeamAverages {
     .filter(stats => stats.averageTimePerTask > 0)
     .reduce((sum, stats, _, arr) => sum + stats.averageTimePerTask / arr.length, 0);
 
-  // Calculate average tasks per week
+  // Calculate average tasks per week (only subtasks)
   const allWeeklyData = assigneeStats.map(stats => {
-    const weeklyData = generateWeeklyData(stats.tasks, stats.subtasks, 4); // Last 4 weeks
+    const weeklyData = generateWeeklyData(stats.subtasks, [], 4); // Last 4 weeks, only subtasks
     return weeklyData.reduce((sum, week) => sum + week.assigned, 0) / weeklyData.length;
   });
   
@@ -131,9 +131,10 @@ export function calculateTeamAverages(report: AsanaReport): TeamAverages {
 
 /**
  * Generate weekly task data
+ * Note: tasks parameter now contains subtasks (since main tasks are not displayed)
  */
 function generateWeeklyData(
-  tasks: Task[], 
+  tasks: Subtask[], 
   subtasks: Subtask[], 
   weeks: number
 ): WeeklyTaskData[] {
@@ -185,9 +186,10 @@ function generateWeeklyData(
 
 /**
  * Generate monthly task data
+ * Note: tasks parameter now contains subtasks (since main tasks are not displayed)
  */
 function generateMonthlyData(
-  tasks: Task[], 
+  tasks: Subtask[], 
   subtasks: Subtask[], 
   months: number
 ): MonthlyTaskData[] {
@@ -237,21 +239,31 @@ function generateMonthlyData(
 
 /**
  * Generate project distribution data
+ * Note: tasks parameter now contains subtasks (since main tasks are not displayed)
  */
 function generateProjectDistribution(
-  tasks: Task[], 
+  tasks: Subtask[], 
   subtasks: Subtask[], 
   report: AsanaReport
 ): ProjectDistribution[] {
   const projectMap = new Map<string, number>();
   
-  // Count tasks by project/section
-  tasks.forEach(task => {
-    const project = task.project || 'Unassigned';
-    projectMap.set(project, (projectMap.get(project) || 0) + 1);
+  // Count tasks by project/section (tasks are actually subtasks now)
+  tasks.forEach(subtask => {
+    // For subtasks (now displayed as tasks), find their parent task's project/section
+    let parentProject = 'Unassigned';
+    for (const section of report.sections) {
+      for (const parentTask of section.tasks) {
+        if (parentTask.subtasks.some(st => st.gid === subtask.gid)) {
+          parentProject = parentTask.project || section.name || 'Unassigned';
+          break;
+        }
+      }
+    }
+    projectMap.set(parentProject, (projectMap.get(parentProject) || 0) + 1);
   });
 
-  // For subtasks, we need to find their parent task's project
+  // Process remaining subtasks if any (should be empty in new structure)
   subtasks.forEach(subtask => {
     // Find parent task
     let parentProject = 'Unassigned';
@@ -279,8 +291,9 @@ function generateProjectDistribution(
 
 /**
  * Generate status distribution data
+ * Note: tasks parameter now contains subtasks (since main tasks are not displayed)
  */
-function generateStatusDistribution(tasks: Task[], subtasks: Subtask[]): StatusDistribution[] {
+function generateStatusDistribution(tasks: Subtask[], subtasks: Subtask[]): StatusDistribution[] {
   const allItems = [...tasks, ...subtasks];
   const total = allItems.length;
   
@@ -322,9 +335,10 @@ function generateStatusDistribution(tasks: Task[], subtasks: Subtask[]): StatusD
 
 /**
  * Generate calendar data for calendar view
+ * Note: tasks parameter now contains subtasks (since main tasks are not displayed)
  */
 export function generateCalendarData(
-  tasks: Task[], 
+  tasks: Subtask[], 
   subtasks: Subtask[],
   monthsToShow: number = 3
 ): CalendarDay[] {
@@ -360,7 +374,7 @@ export function generateCalendarData(
         dayData.items.push({
           name: item.name,
           completed: item.completed,
-          isOverdue: 'isOverdue' in item ? item.isOverdue() : false
+          isOverdue: item.isOverdue()
         });
       }
     }
@@ -375,7 +389,7 @@ export function generateCalendarData(
     }
 
     // Check for overdue items
-    if ('isOverdue' in item && item.isOverdue()) {
+    if (item.isOverdue()) {
       const dateKey = dayjs().format('YYYY-MM-DD');
       const dayData = itemMap.get(dateKey);
       if (dayData) {
@@ -401,13 +415,14 @@ export interface CalendarDay {
 
 /**
  * Filter and search functions
+ * Note: tasks parameter now contains subtasks (since main tasks are not displayed)
  */
 export function filterTasksByDateRange(
-  tasks: Task[], 
+  tasks: Subtask[], 
   subtasks: Subtask[], 
   startDate: string, 
   endDate: string
-): { tasks: Task[]; subtasks: Subtask[] } {
+): { tasks: Subtask[]; subtasks: Subtask[] } {
   const start = dayjs(startDate);
   const end = dayjs(endDate);
 
@@ -432,12 +447,13 @@ export function filterTasksByDateRange(
 
 /**
  * Search tasks and subtasks by name
+ * Note: tasks parameter now contains subtasks (since main tasks are not displayed)
  */
 export function searchItems(
-  tasks: Task[], 
+  tasks: Subtask[], 
   subtasks: Subtask[], 
   searchTerm: string
-): { tasks: Task[]; subtasks: Subtask[] } {
+): { tasks: Subtask[]; subtasks: Subtask[] } {
   const term = searchTerm.toLowerCase();
 
   const filteredTasks = tasks.filter(task => 
