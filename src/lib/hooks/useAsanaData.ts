@@ -7,7 +7,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AsanaReport, Assignee } from '../../models/asanaReport';
 import { AssigneeStats, processAssigneeStats, calculateTeamAverages } from '../dataProcessor';
-import { useReportCache } from '../storage';
+import { 
+  saveReport, 
+  loadReport, 
+  clearCache,
+  saveUserPreferences,
+  loadUserPreferences
+} from '../supabaseStorage';
 import { useAsanaApi, LoadingProgress, getAsanaApiClient } from '../asanaApi';
 
 export interface UseAsanaDataReturn {
@@ -37,8 +43,6 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
-
-  const cache = useReportCache();
   
   // Progress callback for API calls
   const handleProgress = useCallback((progress: LoadingProgress) => {
@@ -72,8 +76,8 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
       
       const freshReport = await api.fetchCompleteReport();
       
-      // Save to cache
-      cache.save(freshReport);
+      // Save to Supabase
+      await saveReport(freshReport);
       setReport(freshReport);
       
       // Clear progress when done
@@ -85,7 +89,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
       setLoadingProgress(null);
       throw err;
     }
-  }, [api, cache]);
+  }, [api]);
 
   const loadData = useCallback(async () => {
     try {
@@ -93,8 +97,8 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
       setIsLoading(true);
       setLoadingProgress(null);
 
-      // Try to load from cache first
-      const cachedReport = cache.load();
+      // Try to load from Supabase cache first
+      const cachedReport = await loadReport();
       if (cachedReport) {
         setReport(cachedReport);
         setIsLoading(false);
@@ -110,12 +114,28 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [cache, fetchFromApi]);
+  }, [fetchFromApi]);
 
   // Load data on mount
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load user preferences on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const preferences = await loadUserPreferences();
+        if (preferences.selectedAssignee && !selectedAssigneeGid) {
+          setSelectedAssigneeGid(preferences.selectedAssignee);
+        }
+      } catch (error) {
+        console.error('Error loading user preferences:', error);
+      }
+    };
+
+    loadPreferences();
+  }, [selectedAssigneeGid]);
 
   // Auto-select first assignee if none selected
   useEffect(() => {
@@ -131,7 +151,7 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
       setLoadingProgress(null);
       
       // Clear cache and fetch fresh data
-      cache.clear();
+      await clearCache();
       await fetchFromApi();
     } catch (err) {
       console.error('Error refreshing data:', err);
@@ -140,9 +160,9 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     } finally {
       setIsRefreshing(false);
     }
-  }, [cache, fetchFromApi]);
+  }, [fetchFromApi]);
 
-  const selectAssignee = useCallback((assigneeGid: string) => {
+  const selectAssignee = useCallback(async (assigneeGid: string) => {
     setSelectedAssigneeGid(assigneeGid);
   }, []);
 

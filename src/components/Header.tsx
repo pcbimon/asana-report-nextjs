@@ -1,13 +1,14 @@
 /**
  * Header component for Individual Dashboard
- * Displays assignee name, refresh button, and cache status
+ * Displays assignee name, refresh button, cache status, and authentication
  */
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Assignee } from '../models/asanaReport';
-import { getCacheInfo } from '../lib/storage';
+import { getCacheInfo } from '../lib/supabaseStorage';
+import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
   assignee?: Assignee;
@@ -16,7 +17,39 @@ interface HeaderProps {
 }
 
 export default function Header({ assignee, onRefresh, isLoading = false }: HeaderProps) {
-  const cacheInfo = getCacheInfo();
+  const [cacheInfo, setCacheInfo] = useState<{
+    exists: boolean;
+    ageMinutes: number;
+    lastUpdated: string;
+  } | null>(null);
+  
+  const { user, signOut } = useAuth();
+
+  // Load cache info
+  useEffect(() => {
+    const loadCacheInfo = async () => {
+      try {
+        const info = await getCacheInfo();
+        setCacheInfo(info);
+      } catch (error) {
+        console.error('Error loading cache info:', error);
+      }
+    };
+
+    loadCacheInfo();
+    
+    // Refresh cache info every minute
+    const interval = setInterval(loadCacheInfo, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
@@ -58,9 +91,25 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
                 <div className="flex flex-col items-end">
                   <span>Last updated: {cacheInfo.lastUpdated}</span>
                   <span className="text-xs">
-                    Cache: {cacheInfo.ageMinutes}m old, {cacheInfo.sizeKB}KB
+                    Cache: {cacheInfo.ageMinutes}m old
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* User info and signout */}
+            {user && (
+              <div className="flex items-center space-x-2">
+                <div className="hidden sm:block text-sm text-gray-700">
+                  <span>Signed in as: </span>
+                  <span className="font-medium">{user.email}</span>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Sign Out
+                </button>
               </div>
             )}
 
