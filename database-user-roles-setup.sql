@@ -280,9 +280,11 @@ CREATE POLICY "Role-based delete access for asana_reports" ON asana_reports
 
 -- Insert sample departments
 INSERT INTO departments (department_code, department_name, department_name_th) VALUES
-  ('DEPT_A', 'Department A', 'ฝ่ายงาน A'),
-  ('DEPT_B', 'Department B', 'ฝ่ายงาน B'),
-  ('DEPT_C', 'Department C', 'ฝ่ายงาน C')
+  ('RA', 'Research and Academic Services', 'งานบริการวิจัยและวิชาการ'),
+  ('TC', 'Technology Commercialization', 'งานถ่ายทอดเทคโนโลยีเชิงพาณิชย์'),
+  ('EE', 'Entrepreneurial Ecosystem', 'งานระบบนิเวศผู้ประกอบการ'),
+  ('SC', 'Strategy and Corporate Communications', 'งานยุทธศาสตร์และสื่อสารองค์กร'),
+  ('AD', 'Administration', 'งานบริหาร')
 ON CONFLICT (department_code) DO UPDATE SET
   department_name = EXCLUDED.department_name,
   department_name_th = EXCLUDED.department_name_th,
@@ -291,17 +293,7 @@ ON CONFLICT (department_code) DO UPDATE SET
 -- Insert sample user roles with department associations (REPLACE WITH YOUR ACTUAL DATA)
 -- These are examples - update with your actual user emails and department assignments before running
 INSERT INTO user_roles (email, role_level, role_name, department_id) VALUES
-  ('admin@example.com', 5, 'ผู้ดูแลระบบ', 1),
-  ('director@example.com', 4, 'ผู้อำนวยการ', 1),
-  ('deputy.a@example.com', 3, 'รองผู้อำนวยการ', 1),
-  ('manager.a@example.com', 2, 'หัวหน้างาน', 1),
-  ('staff.a@example.com', 1, 'ปฏิบัติการ', 1),
-  ('deputy.b@example.com', 3, 'รองผู้อำนวยการ', 2),
-  ('manager.b@example.com', 2, 'หัวหน้างาน', 2),
-  ('staff.b@example.com', 1, 'ปฏิบัติการ', 2),
-  -- Example: Deputy Director with access to multiple departments
-  ('deputy.multi@example.com', 3, 'รองผู้อำนวยการ', 1),
-  ('deputy.multi@example.com', 3, 'รองผู้อำนวยการ', 2)
+  ('patipat.che@mahidol.ac.th', 5, 'ผู้ดูแลระบบ', 1)
 ON CONFLICT (email, department_id) DO UPDATE SET
   role_level = EXCLUDED.role_level,
   role_name = EXCLUDED.role_name,
