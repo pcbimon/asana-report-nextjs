@@ -138,7 +138,7 @@ function generateWeeklyData(
   // Initialize weeks
   for (let i = weeks - 1; i >= 0; i--) {
     const weekStart = dayjs().subtract(i, 'week').startOf('isoWeek');
-    const weekKey = weekStart.format('YYYY-WW');
+    const weekKey = weekStart.format('YYYY') + '-W' + weekStart.isoWeek().toString().padStart(2, '0');
     weeklyMap.set(weekKey, {
       assigned: 0,
       completed: 0,
@@ -150,7 +150,8 @@ function generateWeeklyData(
   [...tasks, ...subtasks].forEach(item => {
     // Count assigned (based on creation date)
     if (item.created_at) {
-      const createdWeek = dayjs(item.created_at).startOf('isoWeek').format('YYYY-WW');
+      const createdDate = dayjs(item.created_at).startOf('isoWeek');
+      const createdWeek = createdDate.format('YYYY') + '-W' + createdDate.isoWeek().toString().padStart(2, '0');
       const weekData = weeklyMap.get(createdWeek);
       if (weekData) {
         weekData.assigned++;
@@ -159,7 +160,8 @@ function generateWeeklyData(
 
     // Count completed
     if (item.completed && item.completed_at) {
-      const completedWeek = dayjs(item.completed_at).startOf('isoWeek').format('YYYY-WW');
+      const completedDate = dayjs(item.completed_at).startOf('isoWeek');
+      const completedWeek = completedDate.format('YYYY') + '-W' + completedDate.isoWeek().toString().padStart(2, '0');
       const weekData = weeklyMap.get(completedWeek);
       if (weekData) {
         weekData.completed++;
