@@ -351,6 +351,121 @@ export class AsanaReport {
   }
 
   /**
+   * Get all tasks and subtasks where user is a collaborator (follower)
+   */
+  getCollaboratorData(userGid: string): {
+    tasks: Task[];
+    subtasks: Subtask[];
+    totalTasks: number;
+    completedTasks: number;
+    overdueTasks: number;
+    completionRate: number;
+    averageTimePerTask: number;
+  } {
+    const tasks: Task[] = [];
+    const subtasks: Subtask[] = [];
+
+    this.sections.forEach(section => {
+      section.tasks.forEach(task => {
+        // Check if any subtask has the user as a follower (collaborator)
+        const hasCollaboratorSubtasks = task.subtasks.some(subtask => 
+          subtask.followers.some(follower => follower.gid === userGid)
+        );
+        
+        // If user is a collaborator on any subtask, include the whole task
+        if (hasCollaboratorSubtasks) {
+          tasks.push(task);
+        }
+
+        // Also check individual subtasks where user is a follower
+        task.subtasks.forEach(subtask => {
+          const isCollaborator = subtask.followers.some(follower => follower.gid === userGid);
+          const isNotAssignee = subtask.assignee?.gid !== userGid; // Don't double-count assignees
+          
+          if (isCollaborator && isNotAssignee) {
+            subtasks.push(subtask);
+          }
+        });
+      });
+    });
+
+    const totalTasks = tasks.length + subtasks.length;
+    const completedTasks = tasks.filter(t => t.completed).length + subtasks.filter(st => st.completed).length;
+    const overdueTasks = tasks.filter(t => t.isOverdue()).length + subtasks.filter(st => st.isOverdue()).length;
+    const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+    // Calculate average time per task
+    const completedTasksWithTime = tasks.filter(t => t.completed && t.getTotalTimeSpent() > 0);
+    const completedSubtasksWithTime = subtasks.filter(st => st.completed && st.getTimeSpent() > 0);
+    
+    const totalTimeSpent = 
+      completedTasksWithTime.reduce((sum, t) => sum + t.getTotalTimeSpent(), 0) +
+      completedSubtasksWithTime.reduce((sum, st) => sum + st.getTimeSpent(), 0);
+    
+    const totalCompletedWithTime = completedTasksWithTime.length + completedSubtasksWithTime.length;
+    const averageTimePerTask = totalCompletedWithTime > 0 ? totalTimeSpent / totalCompletedWithTime : 0;
+
+    return {
+      tasks,
+      subtasks,
+      totalTasks,
+      completedTasks,
+      overdueTasks,
+      completionRate,
+      averageTimePerTask
+    };
+  }
+
+  /**
+   * Get combined assignee and collaborator data for a user
+   */
+  getUserData(userGid: string): {
+    assigneeData: {
+      tasks: Task[];
+      subtasks: Subtask[];
+      totalTasks: number;
+      completedTasks: number;
+      overdueTasks: number;
+      completionRate: number;
+      averageTimePerTask: number;
+    };
+    collaboratorData: {
+      tasks: Task[];
+      subtasks: Subtask[];
+      totalTasks: number;
+      completedTasks: number;
+      overdueTasks: number;
+      completionRate: number;
+      averageTimePerTask: number;
+    };
+    combined: {
+      totalTasks: number;
+      completedTasks: number;
+      overdueTasks: number;
+      completionRate: number;
+    };
+  } {
+    const assigneeData = this.getAssigneeData(userGid);
+    const collaboratorData = this.getCollaboratorData(userGid);
+    
+    const combinedTotalTasks = assigneeData.totalTasks + collaboratorData.totalTasks;
+    const combinedCompletedTasks = assigneeData.completedTasks + collaboratorData.completedTasks;
+    const combinedOverdueTasks = assigneeData.overdueTasks + collaboratorData.overdueTasks;
+    const combinedCompletionRate = combinedTotalTasks > 0 ? (combinedCompletedTasks / combinedTotalTasks) * 100 : 0;
+
+    return {
+      assigneeData,
+      collaboratorData,
+      combined: {
+        totalTasks: combinedTotalTasks,
+        completedTasks: combinedCompletedTasks,
+        overdueTasks: combinedOverdueTasks,
+        completionRate: combinedCompletionRate
+      }
+    };
+  }
+
+  /**
    * Get weekly task summary for an assignee
    */
   getWeeklyTaskSummary(assigneeGid: string, weeks: number = 12): {
