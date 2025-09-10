@@ -9,6 +9,7 @@ import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import { WeeklyTaskData } from '../lib/dataProcessor';
 import dayjs from 'dayjs';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 
 interface WeeklySummaryChartProps {
   weeklyData: WeeklyTaskData[];
@@ -27,17 +28,21 @@ export default function WeeklySummaryChart({
 
   if (!weeklyData || weeklyData.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Weekly Task Summary</h3>
-        <div className="flex items-center justify-center h-64 text-gray-500">
-          <div className="text-center">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <p className="mt-2">No weekly data available</p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Weekly Task Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64 text-gray-500">
+            <div className="text-center">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <p className="mt-2">No weekly data available</p>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -53,14 +58,7 @@ export default function WeeklySummaryChart({
 
   const option = {
     title: {
-      text: 'Weekly Task Summary',
-      textStyle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#1F2937'
-      },
-      left: 0,
-      top: 0
+      show: false, // Hide title since we're using CardTitle
     },
     tooltip: {
       trigger: 'axis',
@@ -210,82 +208,88 @@ export default function WeeklySummaryChart({
   const completionRate = totalAssigned > 0 ? (totalCompleted / totalAssigned) * 100 : 0;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Weekly Task Summary</h3>
-          <p className="text-sm text-gray-600 mt-1">
-            Track your task assignment and completion trends over time
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-sm text-gray-500">
-            Overall Completion Rate
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Weekly Task Summary</CardTitle>
+            <p className="text-sm text-gray-600 mt-1">
+              Track your task assignment and completion trends over time
+            </p>
           </div>
-          <div className={`text-lg font-bold ${
-            completionRate >= 80 ? 'text-green-600' : 
-            completionRate >= 60 ? 'text-yellow-600' : 'text-red-600'
-          }`}>
-            {Math.round(completionRate)}%
+          <div className="text-right">
+            <div className="text-sm text-gray-500">
+              Overall Completion Rate
+            </div>
+            <div className={`text-lg font-bold ${
+              completionRate >= 80 ? 'text-green-600' : 
+              completionRate >= 60 ? 'text-yellow-600' : 'text-red-600'
+            }`}>
+              {Math.round(completionRate)}%
+            </div>
           </div>
         </div>
-      </div>
-      
-      <div className="h-80">
-        <ReactECharts 
-          option={option} 
-          style={{ width: '100%', height: '100%' }}
-          opts={{ renderer: 'canvas' }}
-        />
-      </div>
+      </CardHeader>
+      <CardContent>
+        <div className="h-80">
+          <ReactECharts 
+            option={option} 
+            style={{ width: '100%', height: '100%' }}
+            opts={{ renderer: 'canvas' }}
+          />
+        </div>
 
-      {/* Summary stats */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <div className="text-2xl font-bold text-blue-600">{totalAssigned}</div>
-            <div className="text-sm text-gray-600">Total Assigned</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-green-600">{totalCompleted}</div>
-            <div className="text-sm text-gray-600">Total Completed</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-gray-600">{totalAssigned - totalCompleted}</div>
-            <div className="text-sm text-gray-600">Remaining</div>
+        {/* Summary stats */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{totalAssigned}</div>
+              <div className="text-sm text-gray-600">Total Assigned</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-600">{totalCompleted}</div>
+              <div className="text-sm text-gray-600">Total Completed</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-gray-600">{totalAssigned - totalCompleted}</div>
+              <div className="text-sm text-gray-600">Remaining</div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function WeeklySummaryChartSkeleton() {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <div className="h-6 w-48 bg-gray-300 rounded animate-pulse"></div>
-          <div className="h-4 w-64 bg-gray-300 rounded animate-pulse mt-2"></div>
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="h-6 w-48 bg-gray-300 rounded animate-pulse"></div>
+            <div className="h-4 w-64 bg-gray-300 rounded animate-pulse mt-2"></div>
+          </div>
+          <div className="text-right">
+            <div className="h-4 w-24 bg-gray-300 rounded animate-pulse"></div>
+            <div className="h-6 w-12 bg-gray-300 rounded animate-pulse mt-1"></div>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="h-4 w-24 bg-gray-300 rounded animate-pulse"></div>
-          <div className="h-6 w-12 bg-gray-300 rounded animate-pulse mt-1"></div>
-        </div>
-      </div>
-      
-      <div className="h-80 bg-gray-100 rounded animate-pulse"></div>
+      </CardHeader>
+      <CardContent>
+        <div className="h-80 bg-gray-100 rounded animate-pulse"></div>
 
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index}>
-              <div className="h-8 w-12 bg-gray-300 rounded animate-pulse mx-auto"></div>
-              <div className="h-4 w-20 bg-gray-300 rounded animate-pulse mt-2 mx-auto"></div>
-            </div>
-          ))}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index}>
+                <div className="h-8 w-12 bg-gray-300 rounded animate-pulse mx-auto"></div>
+                <div className="h-4 w-20 bg-gray-300 rounded animate-pulse mt-2 mx-auto"></div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -12,6 +12,14 @@ import WeeklySummaryChart from '../../src/components/WeeklySummaryChart';
 import DistributionPieCharts from '../../src/components/DistributionPieCharts';
 import CurrentTasksTable from '../../src/components/CurrentTasksTable';
 import { useAsanaData } from '../../src/lib/hooks/useAsanaData';
+import { Button } from '../../components/ui/button';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '../../components/ui/select';
 
 export default function DashboardPage() {
   const {
@@ -63,12 +71,11 @@ export default function DashboardPage() {
               </ol>
             </div>
             <div className="mt-6">
-              <button
+              <Button
                 onClick={() => window.location.reload()}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Retry
-              </button>
+              </Button>
             </div>
             <div className="mt-4 text-sm text-gray-500">
               Error: {error}
@@ -102,18 +109,21 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <select
+                  <Select
                     value={selectedAssignee?.gid || ''}
-                    onChange={(e) => selectAssignee(e.target.value)}
-                    className="block w-64 text-sm border-2 border-blue-600 text-black rounded-md focus:ring-blue-700 focus:border-blue-700 font-semibold shadow"
+                    onValueChange={(value) => selectAssignee(value)}
                   >
-                    <option value="">Select an assignee...</option>
-                    {assignees.map(assignee => (
-                      <option key={assignee.gid} value={assignee.gid}>
-                        {assignee.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder="Select an assignee..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignees.map(assignee => (
+                        <SelectItem key={assignee.gid} value={assignee.gid}>
+                          {assignee.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <div className="text-xs text-gray-500">
                     {assignees.length} members
                   </div>
@@ -181,12 +191,11 @@ export default function DashboardPage() {
               }
             </p>
             {assignees.length === 0 && (
-              <button
+              <Button
                 onClick={refreshData}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Refresh Data
-              </button>
+              </Button>
             )}
           </div>
         ) : null}

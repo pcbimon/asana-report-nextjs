@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { AssigneeStats } from '../lib/dataProcessor';
+import { Card, CardContent } from '../../components/ui/card';
 
 interface KpiCardsProps {
   stats?: AssigneeStats;
@@ -39,8 +40,8 @@ function KpiCard({ title, value, subtitle, trend, trendValue, icon, color }: Kpi
   };
 
   return (
-    <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
-      <div className="p-6">
+    <Card>
+      <CardContent className="p-6">
         <div className="flex items-center">
           <div className={`flex-shrink-0 p-3 rounded-md ${colorClasses[color]}`}>
             {icon}
@@ -72,15 +73,15 @@ function KpiCard({ title, value, subtitle, trend, trendValue, icon, color }: Kpi
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function KpiCardSkeleton() {
   return (
-    <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
-      <div className="p-6">
+    <Card>
+      <CardContent className="p-6">
         <div className="flex items-center">
           <div className="flex-shrink-0 p-3 rounded-md bg-gray-200 animate-pulse">
             <div className="w-6 h-6 bg-gray-300 rounded"></div>
@@ -93,8 +94,8 @@ function KpiCardSkeleton() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
