@@ -173,6 +173,7 @@ export default function DashboardPage() {
                 subtasks={assigneeStats.assignee ? 
                   report?.getAssigneeData(assigneeStats.assignee.gid).subtasks || [] : []}
                 isLoading={isLoading}
+                userGid={assigneeStats.assignee?.gid}
               />
             </section>
           </div>

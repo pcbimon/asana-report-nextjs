@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Task, Subtask } from '../models/asanaReport';
+import { Task, Subtask, Follower } from '../models/asanaReport';
 import dayjs from 'dayjs';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -22,6 +22,7 @@ interface CurrentTasksTableProps {
   tasks: Task[];
   subtasks: Subtask[];
   isLoading?: boolean;
+  userGid?: string; // Current user's GID to determine relationship type
 }
 
 type TaskItem = {
@@ -35,6 +36,8 @@ type TaskItem = {
   isOverdue: boolean;
   createdAt?: string;
   completedAt?: string;
+  relationship: 'assignee' | 'collaborator';
+  collaborators?: Follower[];
 };
 
 type SortField = 'name' | 'dueDate' | 'completed' | 'project' | 'createdAt';
@@ -43,10 +46,11 @@ type SortDirection = 'asc' | 'desc';
 export default function CurrentTasksTable({ 
   tasks, 
   subtasks, 
-  isLoading = false 
+  isLoading = false,
+  userGid
 }: CurrentTasksTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending' | 'overdue' | 'assignee' | 'collaborator'>('all');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -58,6 +62,20 @@ export default function CurrentTasksTable({
 
     // Add tasks
     tasks.forEach(task => {
+      // Determine relationship for this task
+      const isAssignee = task.assignee?.gid === userGid;
+      
+      // For tasks, show as collaborator if user is follower on any subtask but not the main task assignee
+      const relationship: 'assignee' | 'collaborator' = isAssignee ? 'assignee' : 'collaborator';
+      
+      // Get all unique collaborators from subtasks
+      const allCollaborators = new Map<string, Follower>();
+      task.subtasks.forEach(subtask => {
+        subtask.followers.forEach(follower => {
+          allCollaborators.set(follower.gid, follower);
+        });
+      });
+
       items.push({
         id: task.gid,
         name: task.name,
@@ -68,12 +86,20 @@ export default function CurrentTasksTable({
         priority: task.priority,
         isOverdue: task.isOverdue(),
         createdAt: task.created_at,
-        completedAt: task.completed_at
+        completedAt: task.completed_at,
+        relationship,
+        collaborators: Array.from(allCollaborators.values())
       });
     });
 
     // Add subtasks
     subtasks.forEach(subtask => {
+      // Determine relationship for this subtask
+      const isAssignee = subtask.assignee?.gid === userGid;
+      
+      // Relationship is assignee if assigned, otherwise collaborator if they're a follower
+      const relationship: 'assignee' | 'collaborator' = isAssignee ? 'assignee' : 'collaborator';
+
       items.push({
         id: subtask.gid,
         name: subtask.name,
@@ -81,12 +107,14 @@ export default function CurrentTasksTable({
         completed: subtask.completed,
         isOverdue: subtask.isOverdue(),
         createdAt: subtask.created_at,
-        completedAt: subtask.completed_at
+        completedAt: subtask.completed_at,
+        relationship,
+        collaborators: subtask.followers
       });
     });
 
     return items;
-  }, [tasks, subtasks]);
+  }, [tasks, subtasks, userGid]);
 
   // Filter and sort items
   const filteredAndSortedItems = useMemo(() => {
@@ -109,6 +137,12 @@ export default function CurrentTasksTable({
         break;
       case 'overdue':
         filtered = filtered.filter(item => item.isOverdue);
+        break;
+      case 'assignee':
+        filtered = filtered.filter(item => item.relationship === 'assignee');
+        break;
+      case 'collaborator':
+        filtered = filtered.filter(item => item.relationship === 'collaborator');
         break;
       default:
         // 'all' - no additional filtering
@@ -215,6 +249,21 @@ export default function CurrentTasksTable({
     );
   };
 
+  const getRelationshipBadge = (item: TaskItem) => {
+    if (item.relationship === 'assignee') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+          Assignee
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+        Collaborator
+      </span>
+    );
+  };
+
   if (isLoading) {
     return <CurrentTasksTableSkeleton />;
   }
@@ -253,6 +302,8 @@ export default function CurrentTasksTable({
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="assignee">Assignee</SelectItem>
+                <SelectItem value="collaborator">Collaborator</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -294,6 +345,9 @@ export default function CurrentTasksTable({
                   {getSortIcon('completed')}
                 </div>
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Relationship
+              </th>
               <th 
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('createdAt')}
@@ -311,6 +365,11 @@ export default function CurrentTasksTable({
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div>
                     <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                    {item.collaborators && item.collaborators.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Collaborators: {item.collaborators.map(c => c.name).join(', ')}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -325,6 +384,9 @@ export default function CurrentTasksTable({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {getStatusBadge(item)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {getRelationshipBadge(item)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {item.createdAt ? dayjs(item.createdAt).format('MMM DD, YYYY') : '-'}
@@ -403,7 +465,7 @@ function CurrentTasksTableSkeleton() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {Array.from({ length: 6 }).map((_, index) => (
+              {Array.from({ length: 7 }).map((_, index) => (
                 <th key={index} className="px-6 py-3 text-left">
                   <div className="h-4 w-20 bg-gray-300 rounded animate-pulse"></div>
                 </th>
@@ -413,7 +475,7 @@ function CurrentTasksTableSkeleton() {
           <tbody className="bg-white divide-y divide-gray-200">
             {Array.from({ length: 5 }).map((_, index) => (
               <tr key={index}>
-                {Array.from({ length: 6 }).map((_, cellIndex) => (
+                {Array.from({ length: 7 }).map((_, cellIndex) => (
                   <td key={cellIndex} className="px-6 py-4 whitespace-nowrap">
                     <div className="h-4 w-24 bg-gray-300 rounded animate-pulse"></div>
                   </td>
