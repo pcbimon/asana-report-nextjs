@@ -278,15 +278,6 @@ export default function CurrentTasksTable({
               </th>
               <th 
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('project')}
-              >
-                <div className="flex items-center space-x-1">
-                  <span>Project</span>
-                  {getSortIcon('project')}
-                </div>
-              </th>
-              <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('dueDate')}
               >
                 <div className="flex items-center space-x-1">
@@ -328,9 +319,6 @@ export default function CurrentTasksTable({
                   }`}>
                     {item.type === 'task' ? 'Task' : 'Subtask'}
                   </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {item.project || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {item.dueDate ? dayjs(item.dueDate).format('MMM DD, YYYY') : '-'}
