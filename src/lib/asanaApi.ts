@@ -1,10 +1,12 @@
+// Note: This file is now server-side only and should not be imported in client components
+// Use the API routes in /app/api/asana/* for client-side data fetching
+
 /**
- * Asana API integration utilities
+ * Asana API integration utilities - SERVER SIDE ONLY
  * Handles fetching data from Asana API with proper error handling and rate limiting
  */
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { useMemo } from 'react';
 import { Assignee, Section, Task, Subtask, AsanaReport } from '../models/asanaReport';
 
 // Progress tracking interface
@@ -468,30 +470,5 @@ export class AsanaApiClient {
   }
 }
 
-// Singleton instance
-let apiClientInstance: AsanaApiClient | null = null;
-
-/**
- * Get singleton instance of AsanaApiClient
- */
-export function getAsanaApiClient(): AsanaApiClient {
-  if (!apiClientInstance) {
-    apiClientInstance = new AsanaApiClient();
-  }
-  return apiClientInstance;
-}
-
-/**
- * Hook for use in React components
- */
-export function useAsanaApi() {
-  // Return memoized API methods to prevent re-creation on every render
-  return useMemo(() => {
-    const client = getAsanaApiClient();
-    return {
-      fetchCompleteReport: () => client.fetchCompleteReport(),
-      fetchTeamUsers: () => client.fetchTeamUsers(),
-      testConnection: () => client.testConnection(),
-    };
-  }, []); // Empty dependency array since the client is a singleton
-}
+// Note: Singleton pattern and React hooks removed - this is now server-side only
+// For client-side usage, use the API routes and useAsanaDataApi hook
