@@ -26,7 +26,7 @@ export default function DistributionPieCharts({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="distribution-charts">
       {/* Project Distribution Chart */}
       <ProjectDistributionChart data={projectDistribution} />
       

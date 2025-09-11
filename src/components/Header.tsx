@@ -10,17 +10,29 @@ import { Assignee } from '../models/asanaReport';
 import { getCacheInfo } from '../lib/supabaseStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
-import { RefreshCw, Download, Settings } from 'lucide-react';
+import { RefreshCw, Settings } from 'lucide-react';
 import { getDepartmentDisplayName, UserRoleLevel } from '../types/userRoles';
 import { useRouter } from 'next/navigation';
+import ExportButtons from './ExportButtons';
 
 interface HeaderProps {
   assignee?: Assignee;
   onRefresh?: () => void;
   isLoading?: boolean;
+  // Export props
+  report?: any;
+  assigneeStats?: any;
+  subtasks?: any[];
 }
 
-export default function Header({ assignee, onRefresh, isLoading = false }: HeaderProps) {
+export default function Header({ 
+  assignee, 
+  onRefresh, 
+  isLoading = false,
+  report,
+  assigneeStats,
+  subtasks = []
+}: HeaderProps) {
   const [cacheInfo, setCacheInfo] = useState<{
     exists: boolean;
     ageMinutes: number;
@@ -165,10 +177,13 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
             </Button>
 
             {/* Export button */}
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            <ExportButtons
+              report={report}
+              assigneeStats={assigneeStats}
+              subtasks={subtasks}
+              assigneeName={assignee?.name}
+              userGid={assignee?.gid}
+            />
           </div>
         </div>
       </div>

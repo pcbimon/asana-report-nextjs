@@ -5,13 +5,19 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import Header from '../../src/components/Header';
 import KpiCards from '../../src/components/KpiCards';
 import WeeklySummaryChart from '../../src/components/WeeklySummaryChart';
 import DistributionPieCharts from '../../src/components/DistributionPieCharts';
 import CurrentTasksTable from '../../src/components/CurrentTasksTable';
 import DepartmentSelector, { DepartmentBadge } from '../../src/components/DepartmentSelector';
+import CalendarView from '../../src/components/CalendarView';
+import FiltersPanel from '../../src/components/FiltersPanel';
+import type { FilterOptions } from '../../src/components/FiltersPanel';
+import ExportButtons from '../../src/components/ExportButtons';
+import WorkloadChart from '../../src/components/WorkloadChart';
+import PerformanceRadar from '../../src/components/PerformanceRadar';
 import { useAsanaData } from '../../src/lib/hooks/useAsanaDataApi';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Button } from '../../components/ui/button';
@@ -39,6 +45,92 @@ export default function DashboardPage() {
     refreshData,
     selectAssignee
   } = useAsanaData();
+
+  // Filter state
+  const [filters, setFilters] = useState<FilterOptions>({
+    searchQuery: '',
+    status: 'all',
+    priority: 'all',
+    project: 'all',
+    dateRange: { startDate: '', endDate: '' },
+    assigneeType: 'all'
+  });
+
+  // Filtered subtasks based on filters
+  const filteredSubtasks = useMemo(() => {
+    if (!assigneeStats?.assignee || !report) return [];
+    
+    const userData = report.getUserData(assigneeStats.assignee.gid);
+    let subtasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+
+    // Apply filters
+    if (filters.searchQuery) {
+      subtasks = subtasks.filter(task => 
+        task.name?.toLowerCase().includes(filters.searchQuery.toLowerCase())
+      );
+    }
+
+    if (filters.status !== 'all') {
+      if (filters.status === 'completed') {
+        subtasks = subtasks.filter(task => task.completed);
+      } else if (filters.status === 'pending') {
+        subtasks = subtasks.filter(task => !task.completed);
+      } else if (filters.status === 'overdue') {
+        subtasks = subtasks.filter(task => task.isOverdue());
+      }
+    }
+
+    if (filters.priority !== 'all') {
+      if (filters.priority === 'none') {
+        subtasks = subtasks.filter(task => !task.priority);
+      } else {
+        subtasks = subtasks.filter(task => 
+          task.priority?.toLowerCase() === filters.priority
+        );
+      }
+    }
+
+    if (filters.project !== 'all') {
+      subtasks = subtasks.filter(task => task.project === filters.project);
+    }
+
+    if (filters.assigneeType !== 'all') {
+      if (filters.assigneeType === 'mine') {
+        subtasks = subtasks.filter(task => task.assignee?.gid === assigneeStats.assignee?.gid);
+      } else if (filters.assigneeType === 'others') {
+        subtasks = subtasks.filter(task => task.assignee?.gid !== assigneeStats.assignee?.gid);
+      }
+    }
+
+    // Date range filter
+    if (filters.dateRange.startDate || filters.dateRange.endDate) {
+      subtasks = subtasks.filter(task => {
+        const taskDate = task.created_at || task.completed_at;
+        if (!taskDate) return false;
+        
+        const date = new Date(taskDate);
+        const startDate = filters.dateRange.startDate ? new Date(filters.dateRange.startDate) : null;
+        const endDate = filters.dateRange.endDate ? new Date(filters.dateRange.endDate) : null;
+        
+        if (startDate && date < startDate) return false;
+        if (endDate && date > endDate) return false;
+        
+        return true;
+      });
+    }
+
+    return subtasks;
+  }, [assigneeStats, report, filters]);
+
+  // Available projects for filtering
+  const availableProjects = useMemo(() => {
+    if (!assigneeStats?.assignee || !report) return [];
+    
+    const userData = report.getUserData(assigneeStats.assignee.gid);
+    const allSubtasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+    const projects = Array.from(new Set(allSubtasks.map(task => task.project).filter((project): project is string => Boolean(project))));
+    return projects.sort();
+  }, [assigneeStats, report]);
 
   // Loading state for role information
   if (!userRole && !error) {
@@ -131,6 +223,9 @@ export default function DashboardPage() {
         assignee={selectedAssignee || undefined}
         onRefresh={refreshData}
         isLoading={isRefreshing || !!loadingProgress}
+        report={report}
+        assigneeStats={assigneeStats}
+        subtasks={filteredSubtasks}
       />
 
       {/* Main Content */}
@@ -195,6 +290,18 @@ export default function DashboardPage() {
         {/* Dashboard Content */}
         {selectedAssignee && assigneeStats ? (
           <div className="space-y-6">
+            {/* Filters Panel */}
+            <section>
+              <FiltersPanel
+                onFiltersChange={setFilters}
+                projects={availableProjects}
+                isLoading={isLoading}
+                defaultFilters={{
+                  assigneeType: permissions?.canSelectUsers ? 'all' : 'mine'
+                }}
+              />
+            </section>
+
             {/* KPI Cards */}
             <section>
               <KpiCards stats={assigneeStats} isLoading={isLoading} />
@@ -224,13 +331,38 @@ export default function DashboardPage() {
               />
             </section>
 
+            {/* Advanced Charts Row */}
+            <section>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {/* Workload Chart */}
+                <WorkloadChart
+                  weeklyData={assigneeStats.weeklyData}
+                  monthlyData={assigneeStats.monthlyData}
+                  isLoading={isLoading}
+                />
+                
+                {/* Performance Radar */}
+                <PerformanceRadar
+                  assigneeStats={assigneeStats}
+                  teamAverages={teamAverages || undefined}
+                  isLoading={isLoading}
+                />
+              </div>
+            </section>
+
+            {/* Calendar View */}
+            <section>
+              <CalendarView
+                subtasks={filteredSubtasks}
+                isLoading={isLoading}
+                userGid={assigneeStats.assignee?.gid}
+              />
+            </section>
+
             {/* Tasks Table */}
             <section>
               <CurrentTasksTable
-                subtasks={assigneeStats.assignee && report ? (() => {
-                  const userData = report.getUserData(assigneeStats.assignee.gid);
-                  return [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
-                })() : []}
+                subtasks={filteredSubtasks}
                 isLoading={isLoading}
                 userGid={assigneeStats.assignee?.gid}
               />

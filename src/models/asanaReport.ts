@@ -33,6 +33,8 @@ export class Subtask {
   completed: boolean;
   created_at?: string;
   completed_at?: string;
+  project?: string; // Parent task's project
+  priority?: string; // Parent task's priority
 
   constructor(
     gid: string,
@@ -41,7 +43,9 @@ export class Subtask {
     assignee?: Assignee,
     followers: Follower[] = [],
     created_at?: string,
-    completed_at?: string
+    completed_at?: string,
+    project?: string,
+    priority?: string
   ) {
     this.gid = gid;
     this.name = name;
@@ -50,6 +54,8 @@ export class Subtask {
     this.followers = Array.isArray(followers) ? followers : [];
     this.created_at = created_at;
     this.completed_at = completed_at;
+    this.project = project;
+    this.priority = priority;
   }
 
   /**
@@ -229,7 +235,9 @@ export class AsanaReport {
             subtaskAssignee,
             followers,
             subtaskData.created_at,
-            subtaskData.completed_at
+            subtaskData.completed_at,
+            taskData.project, // Use parent task's project
+            taskData.priority // Use parent task's priority
           );
         }) || [];
 
