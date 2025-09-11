@@ -72,6 +72,7 @@ export default function CurrentTasksTable({
         name: subtask.name,
         type: 'task', // Display subtasks as tasks now
         completed: subtask.completed,
+        dueDate: subtask.due_on,
         isOverdue: subtask.isOverdue(),
         createdAt: subtask.created_at,
         completedAt: subtask.completed_at,
