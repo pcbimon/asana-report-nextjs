@@ -40,6 +40,33 @@ const PerformanceRadar: React.FC<PerformanceRadarProps> = ({
 }) => {
   const [chartInstance, setChartInstance] = useState<ECharts | null>(null);
 
+  // Calculate consistency score based on weekly data variance
+  const calculateConsistencyScore = (weeklyData: any[]): number => {
+    if (!weeklyData || weeklyData.length < 2) return 50;
+    
+    const completedTasks = weeklyData.map(w => w.completed);
+    const average = completedTasks.reduce((sum, val) => sum + val, 0) / completedTasks.length;
+    
+    if (average === 0) return 50;
+    
+    const variance = completedTasks.reduce((sum, val) => sum + Math.pow(val - average, 2), 0) / completedTasks.length;
+    const standardDeviation = Math.sqrt(variance);
+    const coefficient = standardDeviation / average;
+    
+    // Convert coefficient to score (lower variance = higher score)
+    return Math.max(0, Math.min(100, 100 - (coefficient * 50)));
+  };
+
+  // Calculate speed score comparing individual vs team average time per task
+  const calculateSpeedScore = (individualTime?: number, teamTime?: number): number => {
+    if (!individualTime || !teamTime || teamTime === 0) return 50;
+    
+    // If individual is faster than team average, score > 50
+    // If individual is slower than team average, score < 50
+    const ratio = teamTime / individualTime;
+    return Math.max(0, Math.min(100, ratio * 50));
+  };
+
   // Calculate radar metrics
   const radarMetrics = useMemo((): RadarMetric[] => {
     if (!assigneeStats || !teamAverages) return [];
@@ -107,32 +134,7 @@ const PerformanceRadar: React.FC<PerformanceRadarProps> = ({
     return metrics;
   }, [assigneeStats, teamAverages]);
 
-  // Calculate consistency score based on weekly data variance
-  const calculateConsistencyScore = (weeklyData: any[]): number => {
-    if (!weeklyData || weeklyData.length < 2) return 50;
-    
-    const completedTasks = weeklyData.map(w => w.completed);
-    const average = completedTasks.reduce((sum, val) => sum + val, 0) / completedTasks.length;
-    
-    if (average === 0) return 50;
-    
-    const variance = completedTasks.reduce((sum, val) => sum + Math.pow(val - average, 2), 0) / completedTasks.length;
-    const standardDeviation = Math.sqrt(variance);
-    const coefficient = standardDeviation / average;
-    
-    // Convert coefficient to score (lower variance = higher score)
-    return Math.max(0, Math.min(100, 100 - (coefficient * 50)));
-  };
-
-  // Calculate speed score comparing individual vs team average time per task
-  const calculateSpeedScore = (individualTime?: number, teamTime?: number): number => {
-    if (!individualTime || !teamTime || teamTime === 0) return 50;
-    
-    // If individual is faster than team average, score > 50
-    // If individual is slower than team average, score < 50
-    const ratio = teamTime / individualTime;
-    return Math.max(0, Math.min(100, ratio * 50));
-  };
+  
 
   // Calculate overall performance score
   const overallScore = useMemo(() => {
@@ -174,13 +176,34 @@ const PerformanceRadar: React.FC<PerformanceRadarProps> = ({
       tooltip: {
         trigger: 'item',
         formatter: (params: any) => {
-          const metric = radarMetrics[params.dimensionIndex];
+          // params may not always include dimensionIndex (depends on chart interaction)
+          // try several fallbacks to find the metric safely
+          const metricIndex = typeof params.dimensionIndex === 'number'
+            ? params.dimensionIndex
+            : (typeof params.dataIndex === 'number' ? params.dataIndex : (typeof params.seriesIndex === 'number' ? params.seriesIndex : 0));
+
+          const metric = radarMetrics[metricIndex];
           const isIndividual = params.seriesName === 'ของฉัน';
-          const value = isIndividual ? metric.individualValue : metric.teamAverage;
-          
+
+          let value: number | undefined;
+          let unit = '';
+
+          if (metric) {
+            value = isIndividual ? metric.individualValue : metric.teamAverage;
+            unit = metric.unit || '';
+          } else if (Array.isArray(params.value)) {
+            // fallback to the value array provided by echarts
+            value = params.value[metricIndex] ?? params.value[0];
+          } else {
+            value = typeof params.value === 'number' ? params.value : undefined;
+          }
+
+          const displayValue = typeof value === 'number' ? value.toFixed(1) : 'N/A';
+          const name = metric ? metric.name : (params.seriesName || 'ค่า');
+
           return `
             ${params.seriesName}<br/>
-            ${metric.name}: ${value.toFixed(1)} ${metric.unit}
+            ${name}: ${displayValue} ${unit}
           `;
         }
       },

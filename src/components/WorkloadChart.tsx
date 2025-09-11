@@ -35,6 +35,31 @@ const WorkloadChart: React.FC<WorkloadChartProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>('weekly');
   const [chartInstance, setChartInstance] = useState<ECharts | null>(null);
 
+  // Calculate linear trend
+  const calculateLinearTrend = (values: number[]) => {
+    const n = values.length;
+    const sumX = values.reduce((sum, _, i) => sum + i, 0);
+    const sumY = values.reduce((sum, val) => sum + val, 0);
+    const sumXY = values.reduce((sum, val, i) => sum + (i * val), 0);
+    const sumXX = values.reduce((sum, _, i) => sum + (i * i), 0);
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    
+    return { slope, intercept };
+  };
+
+  // Format period for display
+  const formatPeriod = (date: Date, mode: ViewMode): string => {
+    if (mode === 'weekly') {
+      return `${date.getDate()}/${date.getMonth() + 1}`;
+    } else {
+      const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                         'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+      return `${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
+    }
+  };
+
   // Process data and generate forecast
   const processedData = useMemo(() => {
     if (viewMode === 'weekly') {
@@ -151,30 +176,6 @@ const WorkloadChart: React.FC<WorkloadChartProps> = ({
     }
   }, [weeklyData, monthlyData, viewMode]);
 
-  // Calculate linear trend
-  const calculateLinearTrend = (values: number[]) => {
-    const n = values.length;
-    const sumX = values.reduce((sum, _, i) => sum + i, 0);
-    const sumY = values.reduce((sum, val) => sum + val, 0);
-    const sumXY = values.reduce((sum, val, i) => sum + (i * val), 0);
-    const sumXX = values.reduce((sum, _, i) => sum + (i * i), 0);
-    
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-    
-    return { slope, intercept };
-  };
-
-  // Format period for display
-  const formatPeriod = (date: Date, mode: ViewMode): string => {
-    if (mode === 'weekly') {
-      return `${date.getDate()}/${date.getMonth() + 1}`;
-    } else {
-      const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-                         'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-      return `${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
-    }
-  };
 
   // Initialize chart
   React.useEffect(() => {
