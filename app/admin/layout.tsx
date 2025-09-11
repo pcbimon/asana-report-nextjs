@@ -8,9 +8,9 @@
 import React from 'react';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { UserRoleLevel } from '../../src/types/userRoles';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '../../components/ui/button';
-import { ArrowLeft, Users, Building2, Shield } from 'lucide-react';
+import { ArrowLeft, Users, Building2, Shield, Settings } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminLayout({
@@ -20,6 +20,7 @@ export default function AdminLayout({
 }) {
   const { userRole, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   // Loading state
   if (isLoading) {
@@ -43,38 +44,74 @@ export default function AdminLayout({
           <p className="text-gray-600 mb-6">
             เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเข้าถึงหน้านี้ได้
           </p>
-          <Button onClick={() => router.push('/dashboard')} className="w-full">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            กลับไปหน้าแดชบอร์ด
-          </Button>
+          <div className="space-y-3">
+            <Button onClick={() => router.push('/dashboard')} className="w-full">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              กลับไปหน้าแดชบอร์ด
+            </Button>
+            <p className="text-sm text-gray-500">
+              หากคุณควรมีสิทธิ์เข้าถึง กรุณาติดต่อผู้ดูแลระบบ
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
+  const navigation = [
+    {
+      name: 'ภาพรวม',
+      href: '/admin',
+      icon: Settings,
+      current: pathname === '/admin'
+    },
+    {
+      name: 'จัดการผู้ใช้งาน',
+      href: '/admin/users',
+      icon: Users,
+      current: pathname === '/admin/users'
+    },
+    {
+      name: 'จัดการฝ่ายงาน',
+      href: '/admin/departments',
+      icon: Building2,
+      current: pathname === '/admin/departments'
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
+            <div className="flex items-center space-x-4">
               <Button
                 variant="ghost"
                 onClick={() => router.push('/dashboard')}
-                className="mr-4"
+                className="text-gray-600 hover:text-gray-900"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 กลับไปแดชบอร์ด
               </Button>
-              <h1 className="text-xl font-semibold text-gray-900">
-                ระบบจัดการ
-              </h1>
+              <div className="border-l border-gray-200 pl-4">
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-6 w-6 text-blue-600" />
+                  <h1 className="text-xl font-semibold text-gray-900">
+                    ระบบจัดการ
+                  </h1>
+                </div>
+                <p className="text-sm text-gray-500">
+                  Admin Management System
+                </p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                {userRole.role_name} - {userRole.department_name}
-              </span>
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">{userRole.role_name}</span>
+                <span className="mx-1">•</span>
+                <span>{userRole.department_name}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -83,21 +120,24 @@ export default function AdminLayout({
       {/* Navigation */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
-            <Link
-              href="/admin/users"
-              className="flex items-center px-3 py-2 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-600"
-            >
-              <Users className="mr-2 h-4 w-4" />
-              จัดการผู้ใช้งาน
-            </Link>
-            <Link
-              href="/admin/departments"
-              className="flex items-center px-3 py-2 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-600"
-            >
-              <Building2 className="mr-2 h-4 w-4" />
-              จัดการฝ่ายงาน
-            </Link>
+          <nav className="flex space-x-0">
+            {navigation.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    item.current
+                      ? 'border-blue-500 text-blue-600 bg-blue-50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <IconComponent className="mr-2 h-4 w-4" />
+                  {item.name}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>

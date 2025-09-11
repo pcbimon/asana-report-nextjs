@@ -132,12 +132,75 @@ export default function DashboardPage() {
   }, [assigneeStats, report]);
 
   // Loading state for role information
-  if (!userRole && !error) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">กำลังโหลดข้อมูลผู้ใช้...</p>
+          <p className="mt-2 text-sm text-gray-500">กรุณารอสักครู่</p>
+          
+          {/* Add a timeout message */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700">
+              หากการโหลดใช้เวลานาน อาจเป็นเพราะ:
+            </p>
+            <ul className="text-sm text-blue-600 mt-2 text-left space-y-1">
+              <li>• การเชื่อมต่อฐานข้อมูลช้า</li>
+              <li>• ปัญหาการกำหนดค่าระบบ</li>
+              <li>• ปัญหาเครือข่าย</li>
+            </ul>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="mt-3 text-blue-600 border-blue-200 hover:bg-blue-100"
+            >
+              รีโหลดหน้า
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if Supabase is configured
+  const supabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  
+  if (!supabaseConfigured) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-lg shadow-sm border border-yellow-200 p-8 text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+              <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.99-.833-2.76 0L3.054 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">ระบบยังไม่ได้กำหนดค่า</h3>
+            <p className="text-gray-600 mb-4">
+              กรุณากำหนดค่าการเชื่อมต่อฐานข้อมูล Supabase เพื่อใช้งานระบบ
+            </p>
+            <div className="bg-gray-50 rounded-md p-4 text-left">
+              <p className="text-sm font-medium text-gray-900 mb-2">วิธีการกำหนดค่า:</p>
+              <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+                <li>สร้างไฟล์ <code className="bg-gray-200 px-1 rounded">.env.local</code> ในโฟลเดอร์โปรเจกต์</li>
+                <li>เพิ่มข้อมูลการเชื่อมต่อ Supabase:</li>
+                <li className="ml-4">
+                  <code className="bg-gray-200 px-2 py-1 rounded text-xs block mt-1">
+                    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url<br/>
+                    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_key
+                  </code>
+                </li>
+                <li>รีสตาร์ทเซิร์ฟเวอร์</li>
+              </ol>
+            </div>
+            <div className="mt-6">
+              <Button onClick={() => window.location.reload()}>
+                ตรวจสอบอีกครั้ง
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     );
