@@ -33,6 +33,7 @@ export class Subtask {
   completed: boolean;
   created_at?: string;
   completed_at?: string;
+  due_on?: string;
   project?: string; // Parent task's project
   priority?: string; // Parent task's priority
 
@@ -45,7 +46,8 @@ export class Subtask {
     created_at?: string,
     completed_at?: string,
     project?: string,
-    priority?: string
+    priority?: string,
+    due_on?: string
   ) {
     this.gid = gid;
     this.name = name;
@@ -54,6 +56,7 @@ export class Subtask {
     this.followers = Array.isArray(followers) ? followers : [];
     this.created_at = created_at;
     this.completed_at = completed_at;
+    this.due_on = due_on;
     this.project = project;
     this.priority = priority;
   }
@@ -72,12 +75,13 @@ export class Subtask {
    * Check if this subtask is overdue
    */
   isOverdue(): boolean {
-    // For subtasks, we'll consider them overdue if they're not completed and created more than 7 days ago
-    if (this.completed || !this.created_at) return false;
-    const created = new Date(this.created_at);
+    // If completed or no due date, it's not overdue
+    if (this.completed || !this.due_on) return false;
+    
+    // Compare due date with current date
+    const dueDate = new Date(this.due_on);
     const now = new Date();
-    const daysSinceCreated = (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
-    return daysSinceCreated > 7;
+    return now > dueDate;
   }
 }
 
@@ -237,7 +241,8 @@ export class AsanaReport {
             subtaskData.created_at,
             subtaskData.completed_at,
             taskData.project, // Use parent task's project
-            taskData.priority // Use parent task's priority
+            taskData.priority, // Use parent task's priority
+            subtaskData.due_on
           );
         }) || [];
 

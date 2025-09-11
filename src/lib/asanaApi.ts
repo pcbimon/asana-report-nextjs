@@ -61,6 +61,7 @@ interface AsanaSubtask {
   completed: boolean;
   created_at?: string;
   completed_at?: string;
+  due_on?: string;
 }
 
 interface AsanaTaskCounts {
@@ -365,7 +366,7 @@ export class AsanaApiClient {
         `/tasks/${taskGid}/subtasks`,
         {
           params: {
-            opt_fields: 'name,assignee.name,assignee.email,completed,created_at,completed_at,followers.name'
+            opt_fields: 'name,assignee.name,assignee.email,completed,created_at,completed_at,due_on,followers.name'
           }
         }
       );
@@ -386,7 +387,10 @@ export class AsanaApiClient {
           assignee,
           followers,
           subtaskData.created_at,
-          subtaskData.completed_at
+          subtaskData.completed_at,
+          undefined, // project - will be inherited from parent task
+          undefined, // priority - will be inherited from parent task
+          subtaskData.due_on
         );
       });
 
