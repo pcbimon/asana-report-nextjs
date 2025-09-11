@@ -330,21 +330,6 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     loadData();
   }, [loadData]);
 
-  // Load user preferences on mount
-  useEffect(() => {
-    const loadPreferences = async () => {
-      try {
-        const preferences = await loadUserPreferences();
-        if (preferences.selectedAssignee && !selectedAssigneeGid) {
-          setSelectedAssigneeGid(preferences.selectedAssignee);
-        }
-      } catch (error) {
-        console.error('Error loading user preferences:', error);
-      }
-    };
-
-    loadPreferences();
-  }, [selectedAssigneeGid]);
 
   // Auto-select first assignee if none selected
   useEffect(() => {
