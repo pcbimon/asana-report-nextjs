@@ -10,8 +10,9 @@ import { Assignee } from '../models/asanaReport';
 import { getCacheInfo } from '../lib/supabaseStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
-import { RefreshCw, Download } from 'lucide-react';
-import { getDepartmentDisplayName } from '../types/userRoles';
+import { RefreshCw, Download, Settings } from 'lucide-react';
+import { getDepartmentDisplayName, UserRoleLevel } from '../types/userRoles';
+import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
   assignee?: Assignee;
@@ -27,6 +28,7 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
   } | null>(null);
   
   const { user, userRole, currentDepartment, signOut } = useAuth();
+  const router = useRouter();
 
   // Load cache info
   useEffect(() => {
@@ -119,6 +121,20 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
                     )}
                   </div>
                 </div>
+                
+                {/* Admin Settings Button */}
+                {userRole?.role_level === UserRoleLevel.ADMIN && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push('/admin')}
+                    className="gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    ระบบจัดการ
+                  </Button>
+                )}
+
                 <Button
                   variant="outline"
                   size="sm"
