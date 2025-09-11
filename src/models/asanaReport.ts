@@ -47,7 +47,7 @@ export class Subtask {
     this.name = name;
     this.completed = completed;
     this.assignee = assignee;
-    this.followers = followers;
+    this.followers = Array.isArray(followers) ? followers : [];
     this.created_at = created_at;
     this.completed_at = completed_at;
   }
@@ -216,9 +216,11 @@ export class AsanaReport {
             new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
             undefined;
 
-          const followers = subtaskData.followers?.map((followerData: any) =>
-            new Follower(followerData.gid, followerData.name)
-          ) || [];
+          const followers = Array.isArray(subtaskData.followers) 
+            ? subtaskData.followers.map((followerData: any) =>
+                new Follower(followerData.gid, followerData.name)
+              )
+            : [];
 
           return new Subtask(
             subtaskData.gid,
@@ -360,7 +362,9 @@ export class AsanaReport {
       section.tasks.forEach(task => {
         // Only check individual subtasks where user is a follower
         task.subtasks.forEach(subtask => {
-          const isCollaborator = subtask.followers.some(follower => follower.gid === userGid);
+          // Ensure followers is always an array before calling .some()
+          const followers = Array.isArray(subtask.followers) ? subtask.followers : [];
+          const isCollaborator = followers.some(follower => follower.gid === userGid);
           const isNotAssignee = subtask.assignee?.gid !== userGid; // Don't double-count assignees
           
           if (isCollaborator && isNotAssignee) {
