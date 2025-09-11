@@ -331,34 +331,6 @@ export default function DashboardPage() {
               />
             </section>
 
-            {/* Advanced Charts Row */}
-            <section>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {/* Workload Chart */}
-                <WorkloadChart
-                  weeklyData={assigneeStats.weeklyData}
-                  monthlyData={assigneeStats.monthlyData}
-                  isLoading={isLoading}
-                />
-                
-                {/* Performance Radar */}
-                <PerformanceRadar
-                  assigneeStats={assigneeStats}
-                  teamAverages={teamAverages || undefined}
-                  isLoading={isLoading}
-                />
-              </div>
-            </section>
-
-            {/* Calendar View */}
-            <section>
-              <CalendarView
-                subtasks={filteredSubtasks}
-                isLoading={isLoading}
-                userGid={assigneeStats.assignee?.gid}
-              />
-            </section>
-
             {/* Tasks Table */}
             <section>
               <CurrentTasksTable
