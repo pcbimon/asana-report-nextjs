@@ -265,16 +265,19 @@ export default function DashboardPage() {
                       <SelectValue placeholder="เลือกสมาชิก..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {assignees.map(assignee => (
-                        <SelectItem key={assignee.gid} value={assignee.gid}>
-                          <div className="flex flex-col">
-                            <span>{assignee.name}</span>
-                            {assignee.email && (
-                              <span className="text-xs text-gray-500">{assignee.email}</span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {assignees
+                        .slice()
+                        .sort((a, b) => (a.email || '').localeCompare(b.email || ''))
+                        .map(assignee => (
+                          <SelectItem key={assignee.gid} value={assignee.gid}>
+                            <div className="flex flex-col">
+                              <span>{assignee.name}</span>
+                              {assignee.email && (
+                                <span className="text-xs text-gray-500">{assignee.email}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <div className="text-xs text-gray-500">
