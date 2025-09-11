@@ -387,12 +387,10 @@ function reportFromJSON(data: any): AsanaReport {
         const subtaskAssignee = subtaskData.assignee ? 
           new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
           undefined;
-
         const followers = subtaskData.followers?.map((followerData: any) =>
           new Follower(followerData.gid, followerData.name)
         ) || [];
-
-        return new Subtask(
+        const subTask = new Subtask(
           subtaskData.gid,
           subtaskData.name,
           subtaskData.completed,
@@ -404,6 +402,7 @@ function reportFromJSON(data: any): AsanaReport {
           subtaskData.priority,
           subtaskData.due_on
         );
+        return subTask;
       });
 
       return new Task(

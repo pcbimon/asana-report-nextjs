@@ -59,7 +59,6 @@ export default function DashboardPage() {
   // Filtered subtasks based on filters
   const filteredSubtasks = useMemo(() => {
     if (!assigneeStats?.assignee || !report) return [];
-    
     const userData = report.getUserData(assigneeStats.assignee.gid);
     let subtasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
 
