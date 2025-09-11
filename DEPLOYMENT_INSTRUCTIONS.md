@@ -241,7 +241,37 @@ WHERE department_code = 'OLD_DEPT';
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Critical Fix for Database Issues
+
+#### **COMPREHENSIVE DATABASE FIX** (Recommended)
+
+If you're experiencing ANY of the following issues:
+- `relation "user_roles" does not exist`
+- `infinite recursion detected in policy for relation "user_roles"`
+- `new row violates row-level security policy for table 'asana_reports'`
+- `Returned type character varying(20) does not match expected type text`
+- Login failures with database errors
+
+**Solution:** Run the comprehensive database fix file:
+
+```bash
+# Run this SINGLE file in Supabase SQL editor to fix ALL database issues
+COMPREHENSIVE_DATABASE_FIX.sql
+```
+
+This comprehensive fix:
+- ✅ Creates all required tables if they don't exist (departments, user_roles)
+- ✅ Fixes all RLS policy issues and infinite recursion problems
+- ✅ Corrects function type mismatches
+- ✅ Updates asana_reports policies to allow authenticated users with roles
+- ✅ Automatically links user_id between auth.users and user_roles
+- ✅ Creates all necessary indexes, triggers, and functions
+- ✅ Inserts sample departments and admin user
+- ✅ Provides verification queries to confirm success
+
+**After running this file, your login should work correctly.**
+
+### Individual Hotfix Files (Alternative)
 
 #### 1. RLS Policy Error for asana_reports Table
 
@@ -272,6 +302,14 @@ This hotfix:
 **Error:** `Returned type character varying(20) does not match expected type text`
 
 **Solution:** Already fixed in `HOTFIX_LOGIN_ERRORS.sql`
+
+#### 4. Table Does Not Exist Error
+
+**Error:** `relation "user_roles" does not exist`
+
+**Cause:** The database setup was not completed or tables were dropped.
+
+**Solution:** Use the `COMPREHENSIVE_DATABASE_FIX.sql` file which creates all required tables.
 
 #### 4. User Cannot Access System After Login
 
