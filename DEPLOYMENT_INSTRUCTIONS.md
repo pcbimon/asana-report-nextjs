@@ -239,6 +239,87 @@ WHERE department_code = 'OLD_DEPT';
    - Header displays correct role information
    - Dashboard title reflects user level
 
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 1. RLS Policy Error for asana_reports Table
+
+**Error:** `new row violates row-level security policy for table 'asana_reports'`
+
+**Cause:** The RLS policies for the asana_reports table are too restrictive or user_id linking is missing.
+
+**Solution:** Run the hotfix SQL file:
+
+```bash
+# Run this hotfix in Supabase SQL editor
+HOTFIX_ASANA_REPORTS_RLS.sql
+```
+
+This hotfix:
+- Updates RLS policies to allow all users with valid roles to access cache data
+- Fixes user_id linking between auth.users and user_roles tables
+- Adds automatic user_id updates on login
+
+#### 2. Login Errors (Previous Issues - Fixed)
+
+**Error:** `infinite recursion detected in policy for relation "user_roles"`
+
+**Solution:** Already fixed in `HOTFIX_LOGIN_ERRORS.sql`
+
+#### 3. Function Type Mismatches (Previous Issues - Fixed)
+
+**Error:** `Returned type character varying(20) does not match expected type text`
+
+**Solution:** Already fixed in `HOTFIX_LOGIN_ERRORS.sql`
+
+#### 4. User Cannot Access System After Login
+
+**Symptoms:**
+- User can log in but gets "อีเมลนี้ไม่ได้รับอนุญาตให้เข้าใช้ระบบ"
+- User dashboard shows no data
+
+**Solution:**
+1. Check if user exists in user_roles table:
+```sql
+SELECT * FROM user_roles WHERE email = 'user@company.com';
+```
+
+2. Check if user_id is properly linked:
+```sql
+SELECT ur.*, au.id as auth_user_id 
+FROM user_roles ur 
+LEFT JOIN auth.users au ON ur.email = au.email 
+WHERE ur.email = 'user@company.com';
+```
+
+3. If user_id is NULL, update it manually:
+```sql
+UPDATE user_roles 
+SET user_id = (SELECT id FROM auth.users WHERE email = 'user@company.com')
+WHERE email = 'user@company.com' AND user_id IS NULL;
+```
+
+#### 5. Department Switching Not Working
+
+**Symptoms:**
+- User has multiple departments but cannot switch
+- Department selector not showing
+
+**Solution:**
+1. Verify user has multiple active departments:
+```sql
+SELECT * FROM get_user_departments('user@company.com');
+```
+
+2. Check if departments are active:
+```sql
+SELECT d.*, ur.* 
+FROM user_roles ur 
+JOIN departments d ON ur.department_id = d.id 
+WHERE ur.email = 'user@company.com' AND ur.is_active = true;
+```
+
 ## Monitoring and Maintenance
 
 ### Database Views for User Management
