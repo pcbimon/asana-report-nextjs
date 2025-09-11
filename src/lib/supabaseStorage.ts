@@ -4,7 +4,7 @@
  */
 
 import { supabase, AsanaReportRecord } from './supabase';
-import { AsanaReport, Section, Task, Subtask, Assignee } from '../models/asanaReport';
+import { AsanaReport, Section, Task, Subtask, Assignee, Follower } from '../models/asanaReport';
 
 const DEFAULT_TTL_HOURS = 12; // Default cache TTL: 12 hours
 
@@ -356,9 +356,16 @@ function reportToJSON(report: AsanaReport): any {
             name: subtask.assignee.name,
             email: subtask.assignee.email
           } : null,
+          followers: subtask.followers.map(follower => ({
+            gid: follower.gid,
+            name: follower.name
+          })),
           completed: subtask.completed,
           created_at: subtask.created_at,
-          completed_at: subtask.completed_at
+          completed_at: subtask.completed_at,
+          due_on: subtask.due_on,
+          project: subtask.project,
+          priority: subtask.priority
         }))
       }))
     })),
@@ -381,13 +388,21 @@ function reportFromJSON(data: any): AsanaReport {
           new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
           undefined;
 
+        const followers = subtaskData.followers?.map((followerData: any) =>
+          new Follower(followerData.gid, followerData.name)
+        ) || [];
+
         return new Subtask(
           subtaskData.gid,
           subtaskData.name,
           subtaskData.completed,
           subtaskAssignee,
+          followers,
           subtaskData.created_at,
-          subtaskData.completed_at
+          subtaskData.completed_at,
+          subtaskData.project,
+          subtaskData.priority,
+          subtaskData.due_on
         );
       });
 
