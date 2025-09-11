@@ -155,21 +155,29 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, role_level, role_name, is_active } = body;
+    const { id, role_level, role_name, is_active, department_id } = body;
 
     if (!id || role_level === undefined || !role_name || is_active === undefined) {
       return NextResponse.json({ error: 'ข้อมูลไม่ครบถ้วน' }, { status: 400 });
     }
 
+    // Prepare update data
+    const updateData: any = {
+      role_level,
+      role_name,
+      is_active,
+      updated_at: new Date().toISOString()
+    };
+
+    // Include department_id if provided
+    if (department_id !== undefined) {
+      updateData.department_id = department_id;
+    }
+
     // Update user role
     const { data: updatedUser, error } = await supabase
       .from('user_roles')
-      .update({
-        role_level,
-        role_name,
-        is_active,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select(`
         id,

@@ -155,7 +155,8 @@ export default function UsersAdminPage() {
           id: editingUser.id,
           role_level: formData.role_level,
           role_name: formData.role_name,
-          is_active: formData.is_active
+          is_active: formData.is_active,
+          department_id: parseInt(formData.department_id)
         })
       });
 
@@ -432,13 +433,31 @@ export default function UsersAdminPage() {
           <DialogHeader>
             <DialogTitle>แก้ไขข้อมูลผู้ใช้</DialogTitle>
             <DialogDescription>
-              แก้ไขสิทธิ์และสถานะผู้ใช้
+              แก้ไขสิทธิ์, ฝ่ายงาน และสถานะผู้ใช้
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>อีเมล</Label>
               <Input value={formData.email} disabled />
+            </div>
+            <div>
+              <Label htmlFor="edit-department">ฝ่ายงาน</Label>
+              <Select
+                value={formData.department_id}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="เลือกฝ่ายงาน" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id.toString()}>
+                      {dept.department_name_th} ({dept.department_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="edit-role">ระดับสิทธิ์</Label>
