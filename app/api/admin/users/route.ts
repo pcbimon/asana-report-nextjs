@@ -4,14 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '../../../../src/lib/supabase';
+import { createServerSideClient } from '../../../../src/lib/supabase-server';
 import { UserRoleLevel } from '../../../../src/types/userRoles';
 
 // Verify admin access
 async function verifyAdminAccess(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = createServerSideClient(request);
   
-  // Get current user from auth header or session
+  // Get current user from session
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   
   if (sessionError || !session?.user) {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: 403 });
   }
 
-  const supabase = createClient();
+  const supabase = createServerSideClient(request);
 
   try {
     // Get all user roles with department information
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: 403 });
   }
 
-  const supabase = createClient();
+  const supabase = createServerSideClient(request);
 
   try {
     const body = await request.json();
@@ -151,25 +151,33 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: 403 });
   }
 
-  const supabase = createClient();
+  const supabase = createServerSideClient(request);
 
   try {
     const body = await request.json();
-    const { id, role_level, role_name, is_active } = body;
+    const { id, role_level, role_name, is_active, department_id } = body;
 
     if (!id || role_level === undefined || !role_name || is_active === undefined) {
       return NextResponse.json({ error: 'ข้อมูลไม่ครบถ้วน' }, { status: 400 });
     }
 
+    // Prepare update data
+    const updateData: any = {
+      role_level,
+      role_name,
+      is_active,
+      updated_at: new Date().toISOString()
+    };
+
+    // Include department_id if provided
+    if (department_id !== undefined) {
+      updateData.department_id = department_id;
+    }
+
     // Update user role
     const { data: updatedUser, error } = await supabase
       .from('user_roles')
-      .update({
-        role_level,
-        role_name,
-        is_active,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select(`
         id,
@@ -207,7 +215,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: 403 });
   }
 
-  const supabase = createClient();
+  const supabase = createServerSideClient(request);
 
   try {
     const { searchParams } = new URL(request.url);
