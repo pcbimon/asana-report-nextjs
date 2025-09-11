@@ -10,22 +10,37 @@ import { Assignee } from '../models/asanaReport';
 import { getCacheInfo } from '../lib/supabaseStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
-import { RefreshCw, Download } from 'lucide-react';
+import { RefreshCw, Settings } from 'lucide-react';
+import { getDepartmentDisplayName, UserRoleLevel } from '../types/userRoles';
+import { useRouter } from 'next/navigation';
+import ExportButtons from './ExportButtons';
 
 interface HeaderProps {
   assignee?: Assignee;
   onRefresh?: () => void;
   isLoading?: boolean;
+  // Export props
+  report?: any;
+  assigneeStats?: any;
+  subtasks?: any[];
 }
 
-export default function Header({ assignee, onRefresh, isLoading = false }: HeaderProps) {
+export default function Header({ 
+  assignee, 
+  onRefresh, 
+  isLoading = false,
+  report,
+  assigneeStats,
+  subtasks = []
+}: HeaderProps) {
   const [cacheInfo, setCacheInfo] = useState<{
     exists: boolean;
     ageMinutes: number;
     lastUpdated: string;
   } | null>(null);
   
-  const { user, signOut } = useAuth();
+  const { user, userRole, currentDepartment, signOut } = useAuth();
+  const router = useRouter();
 
   // Load cache info
   useEffect(() => {
@@ -103,9 +118,35 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
             {user && (
               <div className="flex items-center space-x-2">
                 <div className="hidden sm:block text-sm text-gray-700">
-                  <span>Signed in as: </span>
-                  <span className="font-medium">{user.email}</span>
+                  <div className="text-right">
+                    <div>
+                      <span>Signed in as: </span>
+                      <span className="font-medium">{user.email}</span>
+                    </div>
+                    {userRole && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        <div>Role: {userRole.role_name}</div>
+                        {currentDepartment && (
+                          <div>Department: {getDepartmentDisplayName(currentDepartment)}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
+                
+                {/* Admin Settings Button */}
+                {userRole?.role_level === UserRoleLevel.ADMIN && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push('/admin')}
+                    className="gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    ระบบจัดการ
+                  </Button>
+                )}
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -136,10 +177,13 @@ export default function Header({ assignee, onRefresh, isLoading = false }: Heade
             </Button>
 
             {/* Export button */}
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            <ExportButtons
+              report={report}
+              assigneeStats={assigneeStats}
+              subtasks={subtasks}
+              assigneeName={assignee?.name}
+              userGid={assignee?.gid}
+            />
           </div>
         </div>
       </div>

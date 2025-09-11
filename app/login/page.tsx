@@ -1,21 +1,29 @@
 /**
- * Login page for admin authentication
+ * Login page with role-based authentication
  */
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('admin@example.com');
+function LoginForm() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   const { signIn } = useAuth();
+  const searchParams = useSearchParams();
 
-  // Note: Redirect is handled by middleware, not client-side
+  // Check for error from middleware
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'no_role') {
+      setError('บัญชีของคุณไม่ได้รับอนุญาตให้เข้าใช้ระบบ กรุณาติดต่อผู้ดูแลระบบ');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +32,6 @@ export default function LoginPage() {
 
     try {
       const { error } = await signIn(email, password);
-      console.log(error)
       if (error) {
         setError(error.message);
         setIsLoading(false);
@@ -48,10 +55,10 @@ export default function LoginPage() {
           </svg>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Admin Login
+          เข้าสู่ระบบ
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Sign in to access the Asana Dashboard
+          เข้าสู่ระบบเพื่อดู Asana Dashboard
         </p>
       </div>
 
@@ -60,7 +67,7 @@ export default function LoginPage() {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+                อีเมล
               </label>
               <div className="mt-1">
                 <input
@@ -72,14 +79,14 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="admin@example.com"
+                  placeholder="your.email@example.com"
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
+                รหัสผ่าน
               </label>
               <div className="mt-1">
                 <input
@@ -91,7 +98,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Enter admin password"
+                  placeholder="ใส่รหัสผ่าน"
                 />
               </div>
             </div>
@@ -106,7 +113,7 @@ export default function LoginPage() {
                   </div>
                   <div className="ml-3">
                     <h3 className="text-sm font-medium text-red-800">
-                      Authentication Error
+                      ข้อผิดพลาดในการเข้าสู่ระบบ
                     </h3>
                     <div className="mt-2 text-sm text-red-700">
                       <p>{error}</p>
@@ -125,10 +132,10 @@ export default function LoginPage() {
                 {isLoading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Signing in...
+                    กำลังเข้าสู่ระบบ...
                   </div>
                 ) : (
-                  'Sign in'
+                  'เข้าสู่ระบบ'
                 )}
               </button>
             </div>
@@ -136,5 +143,20 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">กำลังโหลด...</p>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -1,17 +1,25 @@
 /**
- * Individual Dashboard Page
- * Main dashboard displaying Asana task analytics for individual assignees
+ * Individual Dashboard Page with Role-Based Access Control
+ * Main dashboard displaying Asana task analytics with permissions based on user role
  */
 
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import Header from '../../src/components/Header';
 import KpiCards from '../../src/components/KpiCards';
 import WeeklySummaryChart from '../../src/components/WeeklySummaryChart';
 import DistributionPieCharts from '../../src/components/DistributionPieCharts';
 import CurrentTasksTable from '../../src/components/CurrentTasksTable';
+import DepartmentSelector, { DepartmentBadge } from '../../src/components/DepartmentSelector';
+import CalendarView from '../../src/components/CalendarView';
+import FiltersPanel from '../../src/components/FiltersPanel';
+import type { FilterOptions } from '../../src/components/FiltersPanel';
+import ExportButtons from '../../src/components/ExportButtons';
+import WorkloadChart from '../../src/components/WorkloadChart';
+import PerformanceRadar from '../../src/components/PerformanceRadar';
 import { useAsanaData } from '../../src/lib/hooks/useAsanaDataApi';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { 
   Select, 
@@ -20,8 +28,10 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '../../components/ui/select';
+import { UserRoleLevel, getDepartmentDisplayName } from '../../src/types/userRoles';
 
 export default function DashboardPage() {
+  const { userRole, userDepartments, currentDepartment, permissions, setCurrentDepartment } = useAuth();
   const {
     report,
     assignees,
@@ -35,6 +45,126 @@ export default function DashboardPage() {
     refreshData,
     selectAssignee
   } = useAsanaData();
+
+  // Filter state
+  const [filters, setFilters] = useState<FilterOptions>({
+    searchQuery: '',
+    status: 'all',
+    priority: 'all',
+    project: 'all',
+    dateRange: { startDate: '', endDate: '' },
+    assigneeType: 'all'
+  });
+
+  // Filtered subtasks based on filters
+  const filteredSubtasks = useMemo(() => {
+    if (!assigneeStats?.assignee || !report) return [];
+    
+    const userData = report.getUserData(assigneeStats.assignee.gid);
+    let subtasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+
+    // Apply filters
+    if (filters.searchQuery) {
+      subtasks = subtasks.filter(task => 
+        task.name?.toLowerCase().includes(filters.searchQuery.toLowerCase())
+      );
+    }
+
+    if (filters.status !== 'all') {
+      if (filters.status === 'completed') {
+        subtasks = subtasks.filter(task => task.completed);
+      } else if (filters.status === 'pending') {
+        subtasks = subtasks.filter(task => !task.completed);
+      } else if (filters.status === 'overdue') {
+        subtasks = subtasks.filter(task => task.isOverdue());
+      }
+    }
+
+    if (filters.priority !== 'all') {
+      if (filters.priority === 'none') {
+        subtasks = subtasks.filter(task => !task.priority);
+      } else {
+        subtasks = subtasks.filter(task => 
+          task.priority?.toLowerCase() === filters.priority
+        );
+      }
+    }
+
+    if (filters.project !== 'all') {
+      subtasks = subtasks.filter(task => task.project === filters.project);
+    }
+
+    if (filters.assigneeType !== 'all') {
+      if (filters.assigneeType === 'mine') {
+        subtasks = subtasks.filter(task => task.assignee?.gid === assigneeStats.assignee?.gid);
+      } else if (filters.assigneeType === 'others') {
+        subtasks = subtasks.filter(task => task.assignee?.gid !== assigneeStats.assignee?.gid);
+      }
+    }
+
+    // Date range filter
+    if (filters.dateRange.startDate || filters.dateRange.endDate) {
+      subtasks = subtasks.filter(task => {
+        const taskDate = task.created_at || task.completed_at;
+        if (!taskDate) return false;
+        
+        const date = new Date(taskDate);
+        const startDate = filters.dateRange.startDate ? new Date(filters.dateRange.startDate) : null;
+        const endDate = filters.dateRange.endDate ? new Date(filters.dateRange.endDate) : null;
+        
+        if (startDate && date < startDate) return false;
+        if (endDate && date > endDate) return false;
+        
+        return true;
+      });
+    }
+
+    return subtasks;
+  }, [assigneeStats, report, filters]);
+
+  // Available projects for filtering
+  const availableProjects = useMemo(() => {
+    if (!assigneeStats?.assignee || !report) return [];
+    
+    const userData = report.getUserData(assigneeStats.assignee.gid);
+    const allSubtasks = [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
+    const projects = Array.from(new Set(allSubtasks.map(task => task.project).filter((project): project is string => Boolean(project))));
+    return projects.sort();
+  }, [assigneeStats, report]);
+
+  // Loading state for role information
+  if (!userRole && !error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">กำลังโหลดข้อมูลผู้ใช้...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Role-based title with department context
+  const getDashboardTitle = () => {
+    if (!userRole) return 'Dashboard';
+    
+    const departmentContext = currentDepartment ? ` - ${getDepartmentDisplayName(currentDepartment)}` : '';
+    
+    switch (userRole.role_level) {
+      case UserRoleLevel.OPERATIONAL:
+        return `Dashboard ส่วนบุคคล${departmentContext}`;
+      case UserRoleLevel.MANAGER:
+        return `Dashboard ระดับหัวหน้างาน${departmentContext}`;
+      case UserRoleLevel.DEPUTY_DIRECTOR:
+        return `Dashboard ระดับรองผู้อำนวยการ${departmentContext}`;
+      case UserRoleLevel.DIRECTOR:
+        return `Dashboard ระดับผู้อำนวยการ${departmentContext}`;
+      case UserRoleLevel.ADMIN:
+        return `Dashboard ผู้ดูแลระบบ${departmentContext}`;
+      default:
+        return `Dashboard${departmentContext}`;
+    }
+  };
 
   // Error state
   if (error && !isLoading) {
@@ -93,19 +223,38 @@ export default function DashboardPage() {
         assignee={selectedAssignee || undefined}
         onRefresh={refreshData}
         isLoading={isRefreshing || !!loadingProgress}
+        report={report}
+        assigneeStats={assigneeStats}
+        subtasks={filteredSubtasks}
       />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* Assignee Selector (if multiple assignees) */}
-        {assignees.length > 1 && (
+        {/* Department Selector (only for users with multiple departments) */}
+        {userDepartments.length > 1 && (
+          <div className="mb-6">
+            <DepartmentSelector
+              departments={userDepartments}
+              currentDepartment={currentDepartment}
+              onDepartmentChange={setCurrentDepartment}
+            />
+          </div>
+        )}
+
+        {/* Assignee Selector (only for users who can select others) */}
+        {permissions?.canSelectUsers && assignees.length > 1 && (
           <div className="mb-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-medium text-gray-900">Select Team Member</h2>
+                  <div className="flex items-center space-x-3">
+                    <h2 className="text-sm font-medium text-gray-900">เลือกสมาชิกทีม</h2>
+                    {currentDepartment && (
+                      <DepartmentBadge department={currentDepartment} />
+                    )}
+                  </div>
                   <p className="text-xs text-gray-600 mt-1">
-                    View individual dashboard for any team member
+                    ดูข้อมูลรายบุคคลของสมาชิกทีมที่คุณมีสิทธิ์เข้าถึงในฝ่ายงานนี้
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -114,18 +263,23 @@ export default function DashboardPage() {
                     onValueChange={(value) => selectAssignee(value)}
                   >
                     <SelectTrigger className="w-64">
-                      <SelectValue placeholder="Select an assignee..." />
+                      <SelectValue placeholder="เลือกสมาชิก..." />
                     </SelectTrigger>
                     <SelectContent>
                       {assignees.map(assignee => (
                         <SelectItem key={assignee.gid} value={assignee.gid}>
-                          {assignee.name}
+                          <div className="flex flex-col">
+                            <span>{assignee.name}</span>
+                            {assignee.email && (
+                              <span className="text-xs text-gray-500">{assignee.email}</span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <div className="text-xs text-gray-500">
-                    {assignees.length} members
+                    {assignees.length} คน
                   </div>
                 </div>
               </div>
@@ -136,6 +290,18 @@ export default function DashboardPage() {
         {/* Dashboard Content */}
         {selectedAssignee && assigneeStats ? (
           <div className="space-y-6">
+            {/* Filters Panel */}
+            <section>
+              <FiltersPanel
+                onFiltersChange={setFilters}
+                projects={availableProjects}
+                isLoading={isLoading}
+                defaultFilters={{
+                  assigneeType: permissions?.canSelectUsers ? 'all' : 'mine'
+                }}
+              />
+            </section>
+
             {/* KPI Cards */}
             <section>
               <KpiCards stats={assigneeStats} isLoading={isLoading} />
@@ -168,10 +334,7 @@ export default function DashboardPage() {
             {/* Tasks Table */}
             <section>
               <CurrentTasksTable
-                subtasks={assigneeStats.assignee && report ? (() => {
-                  const userData = report.getUserData(assigneeStats.assignee.gid);
-                  return [...userData.assigneeData.subtasks, ...userData.collaboratorData.subtasks];
-                })() : []}
+                subtasks={filteredSubtasks}
                 isLoading={isLoading}
                 userGid={assigneeStats.assignee?.gid}
               />
@@ -185,18 +348,22 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Welcome to Individual Dashboard</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              ยินดีต้อนรับสู่ {getDashboardTitle()}
+            </h3>
             <p className="text-gray-600 mb-4">
               {assignees.length === 0 
-                ? 'No assignees found in the project data.' 
-                : 'Select a team member above to view their individual dashboard.'
+                ? 'ไม่พบข้อมูลสมาชิกในโครงการ' 
+                : permissions?.canSelectUsers 
+                  ? 'เลือกสมาชิกทีมข้างต้นเพื่อดูข้อมูลรายบุคคล'
+                  : 'กำลังโหลดข้อมูลของคุณ...'
               }
             </p>
             {assignees.length === 0 && (
               <Button
                 onClick={refreshData}
               >
-                Refresh Data
+                รีเฟรชข้อมูล
               </Button>
             )}
           </div>
@@ -210,7 +377,7 @@ export default function DashboardPage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900">Loading Data</h3>
+                    <h3 className="text-lg font-medium text-gray-900">กำลังโหลดข้อมูล</h3>
                     <p className="text-sm text-gray-600 mt-1">{loadingProgress.status}</p>
                   </div>
                   <div className="text-right">
@@ -222,17 +389,78 @@ export default function DashboardPage() {
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
                   <div 
                     className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${loadingProgress.percentage}%` }}
                   ></div>
                 </div>
+
+                {/* Detailed Progress - Show actual counts */}
+                {(loadingProgress.teamUsers || loadingProgress.sections || loadingProgress.tasks || loadingProgress.subtasks) && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    {loadingProgress.teamUsers && (
+                      <div className="text-center p-3 bg-blue-50 rounded-lg">
+                        <div className="text-lg font-bold text-blue-600">
+                          {loadingProgress.teamUsers.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">ผู้ใช้งาน</div>
+                        {loadingProgress.teamUsers.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.teamUsers.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {loadingProgress.sections && (
+                      <div className="text-center p-3 bg-green-50 rounded-lg">
+                        <div className="text-lg font-bold text-green-600">
+                          {loadingProgress.sections.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">แผนก</div>
+                        {loadingProgress.sections.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.sections.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {loadingProgress.tasks && (
+                      <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                        <div className="text-lg font-bold text-yellow-600">
+                          {loadingProgress.tasks.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">งาน</div>
+                        {loadingProgress.tasks.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.tasks.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {loadingProgress.subtasks && (
+                      <div className="text-center p-3 bg-purple-50 rounded-lg">
+                        <div className="text-lg font-bold text-purple-600">
+                          {loadingProgress.subtasks.loaded}
+                        </div>
+                        <div className="text-xs text-gray-600">งานย่อย</div>
+                        {loadingProgress.subtasks.total > 0 && (
+                          <div className="text-xs text-gray-500">
+                            /{loadingProgress.subtasks.total}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Loading Animation */}
                 <div className="flex items-center justify-center mt-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-sm text-gray-600">Please wait...</span>
+                  <span className="ml-2 text-sm text-gray-600">กรุณารอสักครู่...</span>
                 </div>
               </div>
             )}
@@ -271,12 +499,12 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center text-sm text-gray-500">
             <div>
-              Asana Individual Dashboard - Built with Next.js & ECharts
+              Asana Dashboard ระบบหลายระดับผู้ใช้ - Built with Next.js & ECharts
             </div>
             <div>
               {report && (
                 <span>
-                  Last updated: {new Date(report.lastUpdated).toLocaleString()}
+                  อัปเดตล่าสุด: {new Date(report.lastUpdated).toLocaleString('th-TH')}
                 </span>
               )}
             </div>

@@ -164,9 +164,33 @@ function generateWeeklyData(
     }
 
     // Count completed
-    if (item.completed && item.completed_at) {
-      const completedDate = dayjs(item.completed_at).startOf('isoWeek');
-      const completedWeek = completedDate.format('YYYY') + '-W' + completedDate.isoWeek().toString().padStart(2, '0');
+    if (item.completed) {
+      // Use completed_at if available, otherwise fall back to current date for recently completed items
+      // or the creation date if item was created recently (within last 30 days)
+      let completedDate: dayjs.Dayjs;
+      
+      if (item.completed_at) {
+        completedDate = dayjs(item.completed_at);
+      } else if (item.created_at) {
+        const createdDate = dayjs(item.created_at);
+        const daysSinceCreated = dayjs().diff(createdDate, 'day');
+        
+        // If created within last 30 days, assume completed recently (use current date)
+        // Otherwise, assume completed sometime after creation (use midpoint)
+        if (daysSinceCreated <= 30) {
+          completedDate = dayjs(); // Current date for recent items
+        } else {
+          // For older items, estimate completion at midpoint between creation and now
+          const midPoint = createdDate.add(daysSinceCreated / 2, 'day');
+          completedDate = midPoint;
+        }
+      } else {
+        // No dates available, use current date as fallback
+        completedDate = dayjs();
+      }
+      
+      const completedWeekDate = completedDate.startOf('isoWeek');
+      const completedWeek = completedWeekDate.format('YYYY') + '-W' + completedWeekDate.isoWeek().toString().padStart(2, '0');
       const weekData = weeklyMap.get(completedWeek);
       if (weekData) {
         weekData.completed++;
@@ -218,8 +242,31 @@ function generateMonthlyData(
     }
 
     // Count completed
-    if (item.completed && item.completed_at) {
-      const completedMonth = dayjs(item.completed_at).startOf('month').format('YYYY-MM');
+    if (item.completed) {
+      // Use completed_at if available, otherwise fall back to estimated completion date
+      let completedDate: dayjs.Dayjs;
+      
+      if (item.completed_at) {
+        completedDate = dayjs(item.completed_at);
+      } else if (item.created_at) {
+        const createdDate = dayjs(item.created_at);
+        const daysSinceCreated = dayjs().diff(createdDate, 'day');
+        
+        // If created within last 30 days, assume completed recently (use current date)
+        // Otherwise, estimate completion at midpoint between creation and now
+        if (daysSinceCreated <= 30) {
+          completedDate = dayjs(); // Current date for recent items
+        } else {
+          // For older items, estimate completion at midpoint between creation and now
+          const midPoint = createdDate.add(daysSinceCreated / 2, 'day');
+          completedDate = midPoint;
+        }
+      } else {
+        // No dates available, use current date as fallback
+        completedDate = dayjs();
+      }
+      
+      const completedMonth = completedDate.startOf('month').format('YYYY-MM');
       const monthData = monthlyMap.get(completedMonth);
       if (monthData) {
         monthData.completed++;
@@ -380,8 +427,31 @@ export function generateCalendarData(
     }
 
     // Add to completion date
-    if (item.completed && item.completed_at) {
-      const dateKey = dayjs(item.completed_at).format('YYYY-MM-DD');
+    if (item.completed) {
+      // Use completed_at if available, otherwise fall back to estimated completion date
+      let completedDate: dayjs.Dayjs;
+      
+      if (item.completed_at) {
+        completedDate = dayjs(item.completed_at);
+      } else if (item.created_at) {
+        const createdDate = dayjs(item.created_at);
+        const daysSinceCreated = dayjs().diff(createdDate, 'day');
+        
+        // If created within last 30 days, assume completed recently (use current date)
+        // Otherwise, estimate completion at midpoint between creation and now
+        if (daysSinceCreated <= 30) {
+          completedDate = dayjs(); // Current date for recent items
+        } else {
+          // For older items, estimate completion at midpoint between creation and now
+          const midPoint = createdDate.add(daysSinceCreated / 2, 'day');
+          completedDate = midPoint;
+        }
+      } else {
+        // No dates available, use current date as fallback
+        completedDate = dayjs();
+      }
+      
+      const dateKey = completedDate.format('YYYY-MM-DD');
       const dayData = itemMap.get(dateKey);
       if (dayData) {
         dayData.completed++;

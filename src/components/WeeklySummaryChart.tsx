@@ -282,7 +282,7 @@ export default function WeeklySummaryChart({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-80">
+        <div className="h-80" id="weekly-summary-chart">
           <ReactECharts 
             option={option} 
             style={{ width: '100%', height: '100%' }}

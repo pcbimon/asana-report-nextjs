@@ -1,5 +1,5 @@
 /**
- * Middleware for route protection
+ * Middleware for route protection with role-based access control
  */
 
 import { createServerClient } from '@supabase/ssr';
@@ -61,10 +61,45 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // If accessing login with session, redirect to dashboard
+  // If accessing login with session, check role and redirect appropriately
   if (req.nextUrl.pathname === '/login' && session) {
-    const redirectUrl = new URL('/dashboard', req.url);
-    return NextResponse.redirect(redirectUrl);
+    try {
+      // Check if user has a valid role
+      const { data: roleData } = await supabase
+        .rpc('get_user_role')
+        .single();
+
+      if (roleData && (roleData as any).is_active) {
+        const redirectUrl = new URL('/dashboard', req.url);
+        return NextResponse.redirect(redirectUrl);
+      } else {
+        // User has session but no valid role - sign them out
+        await supabase.auth.signOut();
+        return NextResponse.next();
+      }
+    } catch (error) {
+      console.error('Error checking user role in middleware:', error);
+      // Continue to login page if role check fails
+      return NextResponse.next();
+    }
+  }
+
+  // For protected routes, verify user has an active role
+  if (isProtectedRoute && session) {
+    try {
+      const { data: roleData } = await supabase
+        .rpc('get_user_role')
+        .single();
+
+      if (!roleData || !(roleData as any).is_active) {
+        // User has session but no valid role - redirect to login with error
+        const redirectUrl = new URL('/login?error=no_role', req.url);
+        return NextResponse.redirect(redirectUrl);
+      }
+    } catch (error) {
+      console.error('Error verifying user role:', error);
+      // Allow access on error to avoid breaking functionality
+    }
   }
 
   return response;

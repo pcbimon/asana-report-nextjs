@@ -107,6 +107,8 @@ Note: If you've already added your environment secrets in your deployment/provid
 
 6. Build:
   - yarn build && yarn start
+7. Login Page:
+  - use existing user and password from ENV key NEXT_ADMIN_USER and NEXT_ADMIN_PWD for testing.
 
 Performance considerations
 - Paginate API calls if many tasks.

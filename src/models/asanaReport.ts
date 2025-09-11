@@ -33,6 +33,8 @@ export class Subtask {
   completed: boolean;
   created_at?: string;
   completed_at?: string;
+  project?: string; // Parent task's project
+  priority?: string; // Parent task's priority
 
   constructor(
     gid: string,
@@ -41,15 +43,19 @@ export class Subtask {
     assignee?: Assignee,
     followers: Follower[] = [],
     created_at?: string,
-    completed_at?: string
+    completed_at?: string,
+    project?: string,
+    priority?: string
   ) {
     this.gid = gid;
     this.name = name;
     this.completed = completed;
     this.assignee = assignee;
-    this.followers = followers;
+    this.followers = Array.isArray(followers) ? followers : [];
     this.created_at = created_at;
     this.completed_at = completed_at;
+    this.project = project;
+    this.priority = priority;
   }
 
   /**
@@ -216,9 +222,11 @@ export class AsanaReport {
             new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
             undefined;
 
-          const followers = subtaskData.followers?.map((followerData: any) =>
-            new Follower(followerData.gid, followerData.name)
-          ) || [];
+          const followers = Array.isArray(subtaskData.followers) 
+            ? subtaskData.followers.map((followerData: any) =>
+                new Follower(followerData.gid, followerData.name)
+              )
+            : [];
 
           return new Subtask(
             subtaskData.gid,
@@ -227,7 +235,9 @@ export class AsanaReport {
             subtaskAssignee,
             followers,
             subtaskData.created_at,
-            subtaskData.completed_at
+            subtaskData.completed_at,
+            taskData.project, // Use parent task's project
+            taskData.priority // Use parent task's priority
           );
         }) || [];
 
@@ -360,7 +370,9 @@ export class AsanaReport {
       section.tasks.forEach(task => {
         // Only check individual subtasks where user is a follower
         task.subtasks.forEach(subtask => {
-          const isCollaborator = subtask.followers.some(follower => follower.gid === userGid);
+          // Ensure followers is always an array before calling .some()
+          const followers = Array.isArray(subtask.followers) ? subtask.followers : [];
+          const isCollaborator = followers.some(follower => follower.gid === userGid);
           const isNotAssignee = subtask.assignee?.gid !== userGid; // Don't double-count assignees
           
           if (isCollaborator && isNotAssignee) {
