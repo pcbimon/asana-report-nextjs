@@ -449,14 +449,15 @@ export class AsanaApiClient {
       let totalTasksLoaded = 0;
       
       // Load tasks for all sections in parallel with progress tracking
-      const taskLoadingPromises = sections.map(async (section) => {
+      const taskLoadingPromises = sections.map(async (section, index) => {
         const tasks = await this.fetchTasksInSection(section.gid);
         section.tasks = tasks;
         totalTasksLoaded += tasks.length;
         
-        // Update progress for this section
-        const progressPercent = 25 + (totalTasksLoaded / Math.max(estimatedTaskCount, totalTasksLoaded)) * 25;
-        this.updateProgress(progressPercent, 100, `โหลดงานใน '${section.name}' เสร็จสิ้น`, {
+        // Update progress for this section (more frequent updates)
+        const sectionProgress = ((index + 1) / sections.length) * 25;
+        const progressPercent = 25 + sectionProgress;
+        this.updateProgress(progressPercent, 100, `โหลดงานใน '${section.name}' เสร็จสิ้น (${index + 1}/${sections.length})`, {
           teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
           sections: { loaded: sections.length, total: sections.length },
           tasks: { loaded: totalTasksLoaded, total: Math.max(estimatedTaskCount, totalTasksLoaded) },
@@ -521,13 +522,16 @@ export class AsanaApiClient {
       
       let totalSubtasksLoaded = 0;
       
-      // Process tasks in smaller batches to respect rate limits
+      // Process tasks in smaller batches to respect rate limits and provide frequent updates
       const subtaskBatchSize = 8;
+      let batchIndex = 0;
+      const totalBatches = Math.ceil(allTasks.length / subtaskBatchSize);
       
       for (let i = 0; i < allTasks.length; i += subtaskBatchSize) {
         const batch = allTasks.slice(i, Math.min(i + subtaskBatchSize, allTasks.length));
+        batchIndex++;
         
-        const subtaskResults = await this.executeInParallel(
+        await this.executeInParallel(
           batch,
           async (task) => {
             const subtasks = await this.fetchSubtasks(task.gid);
@@ -542,9 +546,11 @@ export class AsanaApiClient {
           sum + section.tasks.reduce((taskSum, task) => taskSum + task.subtasks.length, 0), 0
         );
         
-        const progressPercent = 65 + ((i + batch.length) / actualTaskCount) * 30;
+        // More frequent progress updates based on batch completion
+        const batchProgress = (batchIndex / totalBatches) * 30;
+        const progressPercent = 65 + batchProgress;
         this.updateProgress(progressPercent, 100, 
-          `โหลดงานย่อย (${i + batch.length}/${actualTaskCount} งาน)...`, {
+          `โหลดงานย่อย (แบทช์ ${batchIndex}/${totalBatches})...`, {
           teamUsers: { loaded: teamUsers.length, total: teamUsers.length },
           sections: { loaded: sections.length, total: sections.length },
           tasks: { loaded: actualTaskCount, total: actualTaskCount },

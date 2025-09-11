@@ -72,6 +72,83 @@ async function fetchReportFromApi(): Promise<AsanaReport> {
 }
 
 /**
+ * Fetch complete report with streaming progress via SSE
+ */
+async function fetchReportWithProgress(
+  onProgress: (progress: LoadingProgress) => void
+): Promise<AsanaReport> {
+  // Check if EventSource is supported
+  if (typeof EventSource === 'undefined') {
+    console.warn('EventSource not supported, falling back to regular fetch');
+    return fetchReportFromApi();
+  }
+
+  return new Promise((resolve, reject) => {
+    const eventSource = new EventSource('/api/asana/report-stream');
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        switch (data.type) {
+          case 'progress':
+            // Update progress with the real-time data from server
+            onProgress({
+              current: data.current,
+              total: data.total,
+              percentage: data.percentage,
+              status: data.status,
+              sections: data.sections,
+              tasks: data.tasks,
+              subtasks: data.subtasks,
+              teamUsers: data.teamUsers,
+            });
+            break;
+            
+          case 'complete':
+            eventSource.close();
+            if (data.success && data.data) {
+              // Convert the plain object back to AsanaReport instance
+              const report = AsanaReport.fromJSON(data.data);
+              resolve(report);
+            } else {
+              reject(new Error(data.error || 'Failed to fetch report'));
+            }
+            break;
+            
+          case 'error':
+            eventSource.close();
+            reject(new Error(data.error || 'Failed to fetch report'));
+            break;
+        }
+      } catch (error) {
+        console.error('Error parsing SSE data:', error);
+        eventSource.close();
+        reject(new Error('Invalid response format'));
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      eventSource.close();
+      // Fall back to regular fetch on SSE error
+      console.log('Falling back to regular fetch due to SSE error');
+      fetchReportFromApi()
+        .then(resolve)
+        .catch(reject);
+    };
+    
+    // Set a timeout to prevent hanging indefinitely
+    setTimeout(() => {
+      if (eventSource.readyState !== EventSource.CLOSED) {
+        eventSource.close();
+        reject(new Error('Request timeout - please try again'));
+      }
+    }, 120000); // 2 minutes timeout
+  });
+}
+
+/**
  * Test API connection via API route
  */
 async function testApiConnection(): Promise<boolean> {
@@ -155,7 +232,9 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
 
   const fetchFromApi = useCallback(async () => {
     try {
-      console.log('Fetching fresh data from Asana API via server...');
+      console.log('Fetching fresh data from Asana API via server with streaming progress...');
+      
+      // Initialize progress
       setLoadingProgress({ 
         current: 0, 
         total: 100, 
@@ -167,17 +246,27 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
         subtasks: { loaded: 0, total: 0 }
       });
       
-      const freshReport = await fetchReportFromApi();
+      // Use streaming fetch with real-time progress updates
+      const freshReport = await fetchReportWithProgress((progress) => {
+        setLoadingProgress(progress);
+      });
       
+      // Update progress for caching
       setLoadingProgress({ 
         current: 95, 
         total: 100, 
         percentage: 95, 
         status: 'บันทึกข้อมูลลงแคช...',
-        teamUsers: { loaded: 0, total: 0 },
-        sections: { loaded: 0, total: 0 },
-        tasks: { loaded: 0, total: 0 },
-        subtasks: { loaded: 0, total: 0 }
+        teamUsers: freshReport.teamUsers ? { loaded: freshReport.teamUsers.length, total: freshReport.teamUsers.length } : { loaded: 0, total: 0 },
+        sections: { loaded: freshReport.sections.length, total: freshReport.sections.length },
+        tasks: { 
+          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0), 
+          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0) 
+        },
+        subtasks: { 
+          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0),
+          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0)
+        }
       });
       
       // Save to Supabase
@@ -190,14 +279,20 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
         total: 100, 
         percentage: 100, 
         status: 'เสร็จสิ้น!',
-        teamUsers: { loaded: 0, total: 0 },
-        sections: { loaded: 0, total: 0 },
-        tasks: { loaded: 0, total: 0 },
-        subtasks: { loaded: 0, total: 0 }
+        teamUsers: freshReport.teamUsers ? { loaded: freshReport.teamUsers.length, total: freshReport.teamUsers.length } : { loaded: 0, total: 0 },
+        sections: { loaded: freshReport.sections.length, total: freshReport.sections.length },
+        tasks: { 
+          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0), 
+          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0) 
+        },
+        subtasks: { 
+          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0),
+          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0)
+        }
       });
       setTimeout(() => setLoadingProgress(null), 1000);
       
-      console.log('Data fetched and cached successfully');
+      console.log('Data fetched and cached successfully with streaming progress');
     } catch (err) {
       console.error('Error fetching from API:', err);
       setLoadingProgress(null);
