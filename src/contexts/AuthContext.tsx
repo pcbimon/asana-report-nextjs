@@ -61,7 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const departments = await userRoleService.getUserDepartments(currentUser.email);
+      // Add timeout for department loading
+      const departmentsPromise = userRoleService.getUserDepartments(currentUser.email);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Department loading timeout')), 8000)
+      );
+      
+      const departments = await Promise.race([departmentsPromise, timeoutPromise]) as UserDepartment[];
       setUserDepartments(departments);
       
       // Set the first department as default (highest role level)
@@ -86,7 +92,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const roleInfo = await userRoleService.getUserRole(currentUser.email, departmentId);
+      // Add timeout for role loading
+      const rolePromise = userRoleService.getUserRole(currentUser.email, departmentId);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Role loading timeout')), 8000)
+      );
+      
+      const roleInfo = await Promise.race([rolePromise, timeoutPromise]) as UserRoleInfo | null;
       setUserRole(roleInfo);
       
       if (roleInfo) {
@@ -121,22 +133,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     
     if (!supabaseUrl || !supabasePublishableKey) {
+      console.warn('Supabase configuration not found - authentication disabled');
       setIsLoading(false);
       return;
     }
 
     const supabase = createClient();
+    let mounted = true; // Track component mount status
 
-    // Get initial session
+    // Get initial session with timeout
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      // Load user departments and role after setting user
-      const defaultDepartment = await loadUserDepartments(currentUser);
-      await loadUserRole(currentUser, defaultDepartment?.department_id);
-      setIsLoading(false);
+      try {
+        // Set a timeout for the session request
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session request timeout')), 10000)
+        );
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        
+        if (!mounted) return; // Component unmounted
+        
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        
+        // Load user departments and role after setting user
+        if (currentUser) {
+          const defaultDepartment = await loadUserDepartments(currentUser);
+          if (mounted) {
+            await loadUserRole(currentUser, defaultDepartment?.department_id);
+          }
+        }
+        
+        if (mounted) {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading initial session:', error);
+        if (mounted) {
+          setIsLoading(false);
+          // Still allow access without authentication
+        }
+      }
     };
 
     getInitialSession();
@@ -144,17 +182,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
+        if (!mounted) return;
         
-        // Load user departments and role after auth state change
-        const defaultDepartment = await loadUserDepartments(currentUser);
-        await loadUserRole(currentUser, defaultDepartment?.department_id);
-        setIsLoading(false);
+        try {
+          const currentUser = session?.user ?? null;
+          setUser(currentUser);
+          
+          // Load user departments and role after auth state change
+          if (currentUser) {
+            const defaultDepartment = await loadUserDepartments(currentUser);
+            if (mounted) {
+              await loadUserRole(currentUser, defaultDepartment?.department_id);
+            }
+          }
+          
+          if (mounted) {
+            setIsLoading(false);
+          }
+        } catch (error) {
+          console.error('Error in auth state change:', error);
+          if (mounted) {
+            setIsLoading(false);
+          }
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: any }> => {
