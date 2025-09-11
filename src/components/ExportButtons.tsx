@@ -297,7 +297,7 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
           {isExporting ? 'กำลังส่งออก...' : 'ส่งออกข้อมูล'}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 bg-white">
         <DropdownMenuItem onClick={exportToPDF} disabled={!!isExporting}>
           <FileText className="h-4 w-4 mr-2" />
           ส่งออกเป็น PDF
@@ -307,20 +307,6 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
           ส่งออกเป็น Excel
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem 
-          onClick={() => exportChartImage('weekly-summary-chart', 'สรุปรายสัปดาห์')}
-          disabled={!!isExporting}
-        >
-          <ImageIcon className="h-4 w-4 mr-2" />
-          กราฟสรุปรายสัปดาห์
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => exportChartImage('distribution-charts', 'กราฟแจกแจง')}
-          disabled={!!isExporting}
-        >
-          <ImageIcon className="h-4 w-4 mr-2" />
-          กราฟแจกแจง
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
