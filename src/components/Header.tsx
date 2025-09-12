@@ -25,6 +25,12 @@ interface HeaderProps {
   report?: any;
   assigneeStats?: any;
   subtasks?: any[];
+  // Cache info
+  cacheInfo?: {
+    exists: boolean;
+    ageMinutes: number;
+    lastUpdated: string;
+  } | null;
 }
 
 export default function Header({ 
@@ -33,34 +39,24 @@ export default function Header({
   isLoading = false,
   report,
   assigneeStats,
-  subtasks = []
+  subtasks = [],
+  cacheInfo: propCacheInfo
 }: HeaderProps) {
   const [cacheInfo, setCacheInfo] = useState<{
     exists: boolean;
     ageMinutes: number;
     lastUpdated: string;
-  } | null>(null);
+  } | null>(propCacheInfo || null);
   
   const { user, userRole, currentDepartment, signOut } = useAuth();
   const router = useRouter();
 
-  // Load cache info
+  // Update cache info when prop changes
   useEffect(() => {
-    const loadCacheInfo = async () => {
-      try {
-        const info = await getCacheInfo();
-        setCacheInfo(info);
-      } catch (error) {
-        console.error('Error loading cache info:', error);
-      }
-    };
-
-    loadCacheInfo();
-    
-    // Refresh cache info every minute
-    const interval = setInterval(loadCacheInfo, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    if (propCacheInfo) {
+      setCacheInfo(propCacheInfo);
+    }
+  }, [propCacheInfo]);
 
   const handleSignOut = async () => {
     try {
@@ -89,16 +85,19 @@ export default function Header({
 
           {/* Right side - User info, actions, and controls */}
           <div className="flex items-center space-x-4">
-            {/* Cache status */}
+            {/* Cache status - updated for read-only mode */}
             {cacheInfo && (
               <div className="hidden lg:flex flex-col items-end text-sm text-gray-500 px-3 py-2 bg-gray-50 rounded-lg">
                 <div className="flex items-center space-x-1">
-                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-                  <span className="font-medium">Last updated</span>
+                  <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                  <span className="font-medium">ข้อมูลล่าสุด</span>
                 </div>
                 <span className="text-xs">{cacheInfo.lastUpdated}</span>
                 <span className="text-xs text-gray-400">
-                  Cache: {cacheInfo.ageMinutes}m old
+                  อายุ: {cacheInfo.ageMinutes} นาที
+                </span>
+                <span className="text-xs text-blue-600">
+                  อัพเดตอัตโนมัติทุกวัน 02:00 น.
                 </span>
               </div>
             )}
