@@ -76,14 +76,12 @@ export async function loadReport(ttlHours: number = DEFAULT_TTL_HOURS): Promise<
     const reportTime = new Date(storedReport.timestamp).getTime();
     const cacheAge = now - reportTime;
     const ttlMs = ttlHours * 60 * 60 * 1000;
-    
     if (cacheAge > ttlMs) {
       console.log(`Cache expired (${Math.round(cacheAge / 1000 / 60)} minutes old, TTL: ${ttlHours} hours)`);
       return null;
     }
-
     // Convert JSON back to AsanaReport instance
-    const report = reportFromJSON(storedReport.data);
+    const report = AsanaReport.fromJSON(storedReport.data);
     console.log(`Loaded cached report (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
     return report;
   } catch (error) {
