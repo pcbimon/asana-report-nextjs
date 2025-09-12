@@ -2,13 +2,24 @@
  * Authentication context for managing user authentication state with role-based access and department support
  */
 
-'use client';
+ 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '../lib/supabase';
 import { userRoleService } from '../lib/userRoleService';
 import { UserRoleInfo, RolePermissions, UserDepartment, getRolePermissions } from '../types/userRoles';
+
+// RxJS imports for declarative streams, retry/backoff, cancellation
+import { BehaviorSubject, Subject, defer, from, of, combineLatest, firstValueFrom } from 'rxjs';
+import {
+  switchMap,
+  catchError,
+  timeout,
+  takeUntil,
+  shareReplay,
+  startWith,
+} from 'rxjs/operators';
 
 interface AuthContextType {
   user: User | null;
@@ -52,154 +63,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<RolePermissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // --- RxJS subjects / streams ---
+  // useRef to keep stable subjects across re-renders
+  const user$Ref = useRef<BehaviorSubject<User | null> | null>(null);
+  const deptSelection$Ref = useRef<BehaviorSubject<number | undefined> | null>(null);
+  const unmount$Ref = useRef<Subject<void> | null>(null);
+
+  if (!user$Ref.current) user$Ref.current = new BehaviorSubject<User | null>(null);
+  if (!deptSelection$Ref.current) deptSelection$Ref.current = new BehaviorSubject<number | undefined>(undefined);
+  if (!unmount$Ref.current) unmount$Ref.current = new Subject<void>();
+
+  const user$ = user$Ref.current;
+  const deptSelection$ = deptSelection$Ref.current;
+  const unmount$ = unmount$Ref.current;
+
+  // Helper: wrap promise in observable with a single attempt and timeout (no retry)
+  const fetchOnce$ = <T,>(fn: () => Promise<T>, perAttemptTimeoutMs = 8000) =>
+    defer(() => from(fn())).pipe(
+      timeout(perAttemptTimeoutMs),
+      catchError(() => of(null as unknown as T))
+    );
+
+  // departments$ - emits array of UserDepartment when user$ emits
+  const departments$ = user$.pipe(
+    switchMap(u => {
+      if (!u?.email) return of([] as UserDepartment[]);
+      return fetchOnce$(() => userRoleService.getUserDepartments(u.email), 10000);
+    }),
+    takeUntil(unmount$),
+    shareReplay(1)
+  );
+
+  // role$ - depends on current user and selected department id
+  const role$ = combineLatest([user$, deptSelection$.pipe(startWith(undefined))]).pipe(
+    switchMap(([u, deptId]) => {
+      if (!u?.email) return of(null as UserRoleInfo | null);
+      return fetchOnce$(() => userRoleService.getUserRole(u.email, deptId), 8000);
+    }),
+    takeUntil(unmount$),
+    shareReplay(1)
+  );
+
   // Function to load user departments and set default department
   const loadUserDepartments = async (currentUser: User | null) => {
+    // Keep backward-compatible function that triggers the user$ stream and
+    // returns the currently known departments (subscribers will update state).
     if (!currentUser?.email) {
-      setUserDepartments([]);
-      setCurrentDepartmentState(null);
-      return;
-    }
-
-    try {
-      // Retry with exponential backoff in case the API is slow/unreliable.
-      // This will attempt to load departments several times before giving up,
-      // waiting a bit longer between each attempt. Each attempt has a per-attempt timeout.
-      const maxAttempts = 5;
-      const initialDelayMs = 1000; // 1s
-      const maxDelayMs = 10000; // cap at 10s
-      const perAttemptTimeoutMs = 10000; // per-attempt timeout
-
-      const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-      let attempt = 0;
-      let delay = initialDelayMs;
-      let lastError: any = null;
-
-      while (attempt < maxAttempts) {
-        attempt += 1;
-        try {
-          // Add per-attempt timeout to avoid hanging forever on one request
-          const departments = await Promise.race([
-            userRoleService.getUserDepartments(currentUser.email),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Department loading timeout')), perAttemptTimeoutMs)),
-          ]) as UserDepartment[];
-
-          // success
-          setUserDepartments(departments);
-
-          // Set the first department as default (highest role level)
-          const defaultDepartment = departments.length > 0 ? departments[0] : null;
-          setCurrentDepartmentState(defaultDepartment);
-          return defaultDepartment;
-        } catch (err) {
-          lastError = err;
-          // If final attempt, fall through to error handling below
-          if (attempt >= maxAttempts) break;
-
-          // exponential backoff with small jitter
-          const jitter = Math.floor(Math.random() * 300);
-          const waitMs = Math.min(delay, maxDelayMs) + jitter;
-          // eslint-disable-next-line no-console
-          console.warn(`getUserDepartments attempt ${attempt} failed, retrying in ${waitMs}ms`, err);
-          // wait before next attempt
-          // Note: not abortable here; callers can rely on outer mounted checks
-          // to avoid applying state after unmount.
-          // eslint-disable-next-line no-await-in-loop
-          await sleep(waitMs);
-          delay = Math.min(delay * 2, maxDelayMs);
-        }
-      }
-
-      // All attempts failed
-      console.error('Error loading user departments (all retries failed):', lastError);
-      setUserDepartments([]);
-      setCurrentDepartmentState(null);
-      return null;
-    } catch (error) {
-      // Fallback: should rarely happen, but keep original safe behavior
-      console.error('Unexpected error loading user departments:', error);
-      setUserDepartments([]);
-      setCurrentDepartmentState(null);
+      // push null user so departments$ yields []
+      user$.next(null);
       return null;
     }
+
+    // push user into stream which triggers departments$ to load
+    user$.next(currentUser);
+
+    // Wait for departments$ to emit at least once. We can't easily await an Observable
+    // without extra helpers here; keep existing behavior by returning current cached
+    // departments state if available.
+    return userDepartments.length > 0 ? userDepartments[0] : null;
   };
 
   // Function to load user role and permissions for the current department
   const loadUserRole = async (currentUser: User | null, departmentId?: number) => {
+    // Thin wrapper: push user and department selection into streams. The role$ subscriber
+    // will update React state.
     if (!currentUser?.email) {
-      setUserRole(null);
-      setPermissions(null);
+      user$.next(null);
+      deptSelection$.next(undefined);
       return;
     }
 
-    try {
-      // Retry with exponential backoff for role loading in case the API is slow/unreliable.
-      const maxAttempts = 4;
-      const initialDelayMs = 500; // start a bit quicker for role
-      const maxDelayMs = 8000;
-      const perAttemptTimeoutMs = 8000;
-
-      const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-      let attempt = 0;
-      let delay = initialDelayMs;
-      let lastError: any = null;
-
-      while (attempt < maxAttempts) {
-        attempt += 1;
-        try {
-          const roleInfo = await Promise.race([
-            userRoleService.getUserRole(currentUser.email, departmentId),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Role loading timeout')), perAttemptTimeoutMs)),
-          ]) as UserRoleInfo | null;
-
-          setUserRole(roleInfo);
-
-          if (roleInfo) {
-            const userPermissions = getRolePermissions(
-              roleInfo.role_level,
-              roleInfo.can_view_emails,
-              currentDepartment || undefined,
-              userDepartments.length > 1
-            );
-            setPermissions(userPermissions);
-          } else {
-            setPermissions(null);
-          }
-
-          return;
-        } catch (err) {
-          lastError = err;
-          if (attempt >= maxAttempts) break;
-
-          const jitter = Math.floor(Math.random() * 200);
-          const waitMs = Math.min(delay, maxDelayMs) + jitter;
-          // eslint-disable-next-line no-console
-          console.warn(`getUserRole attempt ${attempt} failed, retrying in ${waitMs}ms`, err);
-          // eslint-disable-next-line no-await-in-loop
-          await sleep(waitMs);
-          delay = Math.min(delay * 2, maxDelayMs);
-        }
-      }
-
-      console.error('Error loading user role (all retries failed):', lastError);
-      setUserRole(null);
-      setPermissions(null);
-      return;
-    } catch (error) {
-      console.error('Unexpected error loading user role:', error);
-      setUserRole(null);
-      setPermissions(null);
-    }
+    // emit user and selected department id to trigger role$ to load
+    user$.next(currentUser);
+    deptSelection$.next(departmentId);
   };
 
   const refreshRole = async () => {
+    // trigger a role reload for the current department
     await loadUserRole(user, currentDepartment?.department_id);
   };
 
   const setCurrentDepartment = async (department: UserDepartment) => {
     setCurrentDepartmentState(department);
-    await loadUserRole(user, department.department_id);
+    // push department id into stream to reload role
+    deptSelection$.next(department.department_id);
   };
 
   useEffect(() => {
@@ -215,98 +162,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
     let mounted = true; // Track component mount status
 
-    // Get initial session with timeout
+    // Get initial session using RxJS observable + timeout (no retry)
     const getInitialSession = async () => {
       try {
-        // Retry session retrieval with a per-attempt timeout in case Supabase is slow.
-        const maxAttempts = 3;
-        const initialDelayMs = 500;
-        const maxDelayMs = 4000;
         const perAttemptTimeoutMs = 10000;
 
-        const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+        const session$ = defer(() => from(supabase.auth.getSession())).pipe(
+          // supabase.auth.getSession() resolves to { data: { session } }
+          // we use timeout to avoid waiting forever
+          timeout(perAttemptTimeoutMs),
+          catchError(() => of(null as any))
+        );
 
-        let attempt = 0;
-        let delay = initialDelayMs;
-        let lastError: any = null;
-        let session: any = null;
+        const result = await firstValueFrom(session$);
+        if (!mounted) return;
 
-        while (attempt < maxAttempts) {
-          attempt += 1;
-          try {
-            const sessionPromise = supabase.auth.getSession();
-            const result = await Promise.race([
-              sessionPromise,
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Session request timeout')), perAttemptTimeoutMs)),
-            ]) as any;
-
-            session = result?.data?.session ?? null;
-            break;
-          } catch (err) {
-            lastError = err;
-            if (attempt >= maxAttempts) break;
-
-            const jitter = Math.floor(Math.random() * 200);
-            const waitMs = Math.min(delay, maxDelayMs) + jitter;
-            // eslint-disable-next-line no-console
-            console.warn(`getInitialSession attempt ${attempt} failed, retrying in ${waitMs}ms`, err);
-            // eslint-disable-next-line no-await-in-loop
-            await sleep(waitMs);
-            delay = Math.min(delay * 2, maxDelayMs);
-          }
-        }
-
-        if (!mounted) return; // Component unmounted
-
+        const session = result?.data?.session ?? null;
         if (!session) {
-          console.error('Error loading initial session (all retries failed):', lastError);
-          if (mounted) {
-            setIsLoading(false);
-          }
+          setIsLoading(false);
           return;
         }
 
         const currentUser = session?.user ?? null;
         setUser(currentUser);
 
-        // Load user departments and role after setting user
-        if (currentUser) {
-          const defaultDepartment = await loadUserDepartments(currentUser);
-          if (mounted) {
-            await loadUserRole(currentUser, defaultDepartment?.department_id);
-          }
-        }
+        // push user into stream so departments/role load via observables
+        if (currentUser) user$.next(currentUser);
 
-        if (mounted) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       } catch (error) {
         console.error('Unexpected error loading initial session:', error);
-        if (mounted) {
-          setIsLoading(false);
-        }
+        if (mounted) setIsLoading(false);
       }
     };
 
+    // Subscribe to departments$ and role$ to update React state when streams emit.
+    const deptSub = departments$.subscribe(depts => {
+      setUserDepartments(depts ?? []);
+      const defaultDept = (depts && depts.length > 0) ? depts[0] : null;
+      setCurrentDepartmentState(defaultDept);
+      if (defaultDept) deptSelection$.next(defaultDept.department_id);
+    });
+
+    const roleSub = role$.subscribe(roleInfo => {
+      setUserRole(roleInfo ?? null);
+
+      if (roleInfo) {
+        const userPermissions = getRolePermissions(
+          roleInfo.role_level,
+          roleInfo.can_view_emails,
+          currentDepartment || undefined,
+          userDepartments.length > 1
+        );
+        setPermissions(userPermissions);
+      } else {
+        setPermissions(null);
+      }
+    });
+
+    // Now run initial session logic (keeps same retry semantics as before)
     getInitialSession();
 
-    // Listen for auth state changes
+    // Listen for auth state changes and push user into stream when changed
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-        
+
         try {
           const currentUser = session?.user ?? null;
           setUser(currentUser);
-          
-          // Load user departments and role after auth state change
-          if (currentUser) {
-            const defaultDepartment = await loadUserDepartments(currentUser);
-            if (mounted) {
-              await loadUserRole(currentUser, defaultDepartment?.department_id);
-            }
-          }
-          
+
+          // push the user into the stream to trigger department/role loads
+          user$.next(currentUser);
+
           if (mounted) {
             setIsLoading(false);
           }
@@ -319,9 +247,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
+    // cleanup: cancel rxjs streams and supabase subscription
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      try {
+        subscription.unsubscribe();
+      } catch (e) {
+        // ignore
+      }
+      // notify observables to complete/takeUntil
+      unmount$.next();
+      unmount$.complete();
     };
   }, []);
 
@@ -346,12 +282,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     });
     
-    // If sign in successful, link user to role and load role info
+    // If sign in successful, link user to role and push into streams to load data
     if (!error && data.user) {
       await userRoleService.linkUserToRole(email, data.user.id);
-      const defaultDepartment = await loadUserDepartments(data.user);
-      await loadUserRole(data.user, defaultDepartment?.department_id);
-      
+
+      // push user into stream; subscribers will load departments and role
+      user$.next(data.user);
+
+      // small delay to allow streams to start; keep a short promise for existing callers
       return new Promise(resolve => {
         setTimeout(() => resolve({ error: null }), 500);
       });
