@@ -61,22 +61,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // Add timeout for department loading
-      const departmentsPromise = userRoleService.getUserDepartments(currentUser.email);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Department loading timeout')), 8000)
-      );
-      
-      const departments = await Promise.race([departmentsPromise, timeoutPromise]) as UserDepartment[];
-      setUserDepartments(departments);
-      
-      // Set the first department as default (highest role level)
-      const defaultDepartment = departments.length > 0 ? departments[0] : null;
-      setCurrentDepartmentState(defaultDepartment);
-      
-      return defaultDepartment;
+      // Retry with exponential backoff in case the API is slow/unreliable.
+      // This will attempt to load departments several times before giving up,
+      // waiting a bit longer between each attempt. Each attempt has a per-attempt timeout.
+      const maxAttempts = 5;
+      const initialDelayMs = 1000; // 1s
+      const maxDelayMs = 10000; // cap at 10s
+      const perAttemptTimeoutMs = 10000; // per-attempt timeout
+
+      const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+      let attempt = 0;
+      let delay = initialDelayMs;
+      let lastError: any = null;
+
+      while (attempt < maxAttempts) {
+        attempt += 1;
+        try {
+          // Add per-attempt timeout to avoid hanging forever on one request
+          const departments = await Promise.race([
+            userRoleService.getUserDepartments(currentUser.email),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Department loading timeout')), perAttemptTimeoutMs)),
+          ]) as UserDepartment[];
+
+          // success
+          setUserDepartments(departments);
+
+          // Set the first department as default (highest role level)
+          const defaultDepartment = departments.length > 0 ? departments[0] : null;
+          setCurrentDepartmentState(defaultDepartment);
+          return defaultDepartment;
+        } catch (err) {
+          lastError = err;
+          // If final attempt, fall through to error handling below
+          if (attempt >= maxAttempts) break;
+
+          // exponential backoff with small jitter
+          const jitter = Math.floor(Math.random() * 300);
+          const waitMs = Math.min(delay, maxDelayMs) + jitter;
+          // eslint-disable-next-line no-console
+          console.warn(`getUserDepartments attempt ${attempt} failed, retrying in ${waitMs}ms`, err);
+          // wait before next attempt
+          // Note: not abortable here; callers can rely on outer mounted checks
+          // to avoid applying state after unmount.
+          // eslint-disable-next-line no-await-in-loop
+          await sleep(waitMs);
+          delay = Math.min(delay * 2, maxDelayMs);
+        }
+      }
+
+      // All attempts failed
+      console.error('Error loading user departments (all retries failed):', lastError);
+      setUserDepartments([]);
+      setCurrentDepartmentState(null);
+      return null;
     } catch (error) {
-      console.error('Error loading user departments:', error);
+      // Fallback: should rarely happen, but keep original safe behavior
+      console.error('Unexpected error loading user departments:', error);
       setUserDepartments([]);
       setCurrentDepartmentState(null);
       return null;
@@ -92,28 +133,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // Add timeout for role loading
-      const rolePromise = userRoleService.getUserRole(currentUser.email, departmentId);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Role loading timeout')), 8000)
-      );
-      
-      const roleInfo = await Promise.race([rolePromise, timeoutPromise]) as UserRoleInfo | null;
-      setUserRole(roleInfo);
-      
-      if (roleInfo) {
-        const userPermissions = getRolePermissions(
-          roleInfo.role_level, 
-          roleInfo.can_view_emails,
-          currentDepartment || undefined,
-          userDepartments.length > 1
-        );
-        setPermissions(userPermissions);
-      } else {
-        setPermissions(null);
+      // Retry with exponential backoff for role loading in case the API is slow/unreliable.
+      const maxAttempts = 4;
+      const initialDelayMs = 500; // start a bit quicker for role
+      const maxDelayMs = 8000;
+      const perAttemptTimeoutMs = 8000;
+
+      const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+      let attempt = 0;
+      let delay = initialDelayMs;
+      let lastError: any = null;
+
+      while (attempt < maxAttempts) {
+        attempt += 1;
+        try {
+          const roleInfo = await Promise.race([
+            userRoleService.getUserRole(currentUser.email, departmentId),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Role loading timeout')), perAttemptTimeoutMs)),
+          ]) as UserRoleInfo | null;
+
+          setUserRole(roleInfo);
+
+          if (roleInfo) {
+            const userPermissions = getRolePermissions(
+              roleInfo.role_level,
+              roleInfo.can_view_emails,
+              currentDepartment || undefined,
+              userDepartments.length > 1
+            );
+            setPermissions(userPermissions);
+          } else {
+            setPermissions(null);
+          }
+
+          return;
+        } catch (err) {
+          lastError = err;
+          if (attempt >= maxAttempts) break;
+
+          const jitter = Math.floor(Math.random() * 200);
+          const waitMs = Math.min(delay, maxDelayMs) + jitter;
+          // eslint-disable-next-line no-console
+          console.warn(`getUserRole attempt ${attempt} failed, retrying in ${waitMs}ms`, err);
+          // eslint-disable-next-line no-await-in-loop
+          await sleep(waitMs);
+          delay = Math.min(delay * 2, maxDelayMs);
+        }
       }
+
+      console.error('Error loading user role (all retries failed):', lastError);
+      setUserRole(null);
+      setPermissions(null);
+      return;
     } catch (error) {
-      console.error('Error loading user role:', error);
+      console.error('Unexpected error loading user role:', error);
       setUserRole(null);
       setPermissions(null);
     }
