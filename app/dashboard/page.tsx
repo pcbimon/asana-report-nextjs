@@ -326,7 +326,7 @@ export default function DashboardPage() {
                     value={selectedAssignee?.gid || ''}
                     onValueChange={(value) => selectAssignee(value)}
                   >
-                    <SelectTrigger className="w-64">
+                    <SelectTrigger className="w-64 text-start">
                       <SelectValue placeholder="เลือกสมาชิก..." />
                     </SelectTrigger>
                     <SelectContent>
