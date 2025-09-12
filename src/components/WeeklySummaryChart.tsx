@@ -92,6 +92,7 @@ export default function WeeklySummaryChart({
   const assignedData = currentData.map(item => item.assigned);
   const completedData = currentData.map(item => item.completed);
   const teamAverageData = teamAverage > 0 ? currentData.map(() => teamAverage) : [];
+  const expectNumberOfTasksData = teamAverageData.map(item => 3); // Example expectation
 
   const option = {
     title: {
@@ -125,7 +126,7 @@ export default function WeeklySummaryChart({
       }
     },
     legend: {
-      data: teamAverage > 0 ? ['Assigned', 'Completed', 'Team Average'] : ['Assigned', 'Completed'],
+      data: teamAverage > 0 ? ['Assigned', 'Completed', 'Expected Tasks'] : ['Assigned', 'Completed'],
       top: 30,
       textStyle: {
         color: '#6B7280'
@@ -223,9 +224,9 @@ export default function WeeklySummaryChart({
         }
       },
       ...(teamAverage > 0 ? [{
-        name: 'Team Average',
+        name: 'Expected Tasks',
         type: 'line',
-        data: teamAverageData,
+        data: expectNumberOfTasksData,
         lineStyle: {
           color: '#F59E0B',
           width: 2,
