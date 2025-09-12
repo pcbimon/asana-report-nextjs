@@ -14,6 +14,8 @@ import { RefreshCw, Settings } from 'lucide-react';
 import { getDepartmentDisplayName, UserRoleLevel } from '../types/userRoles';
 import { useRouter } from 'next/navigation';
 import ExportButtons from './ExportButtons';
+import ActionButtons from './ActionButtons';
+import {ChevronDown} from './LineIcons'
 
 interface HeaderProps {
   assignee?: Assignee;
@@ -83,25 +85,6 @@ export default function Header({
               </p>
             </div>
             
-            {assignee && (
-              <div className="flex items-center space-x-3 pl-6 border-l border-gray-200">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
-                  <span className="text-white text-sm font-semibold">
-                    {assignee.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {assignee.name}
-                  </p>
-                  {assignee.email && (
-                    <p className="text-sm text-gray-500">
-                      {assignee.email}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Right side - User info, actions, and controls */}
@@ -123,85 +106,43 @@ export default function Header({
             {/* User profile and authentication */}
             {user ? (
               <div className="flex items-center space-x-3">
-                {/* User info */}
-                <div className="hidden sm:flex flex-col items-end text-sm">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                      <span className="text-gray-600 text-xs font-medium">
-                        {user.email?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium text-gray-900">{user.email}</div>
-                      {userRole && (
-                        <div className="flex items-center space-x-2 text-xs text-gray-500">
-                          <span>{userRole.role_name}</span>
-                          {currentDepartment && (
-                            <>
-                              <span>•</span>
-                              <span>{getDepartmentDisplayName(currentDepartment)}</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Action buttons */}
-                <div className="flex items-center space-x-2">
-                  {/* Admin Settings Button - prominently displayed for admins */}
-                  {userRole?.role_level === UserRoleLevel.ADMIN && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => router.push('/admin')}
-                      className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                    >
-                      <Settings className="h-4 w-4 mr-2" />
-                      ระบบจัดการ
-                    </Button>
-                  )}
-
-                  {/* Refresh button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onRefresh}
-                    disabled={isLoading}
-                    className="shadow-sm"
-                  >
-                    {isLoading ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        <span className="hidden sm:inline">กำลังโหลด...</span>
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        <span className="hidden sm:inline">รีเฟรชข้อมูล</span>
-                      </>
-                    )}
-                  </Button>
-
-                  {/* Export button */}
-                  <ExportButtons
+                {/* Dropdown trigger + content combined: clicking user area opens menu */}
+                <div className="flex items-center">
+                  <ActionButtons
+                    assignee={assignee}
+                    onRefresh={onRefresh}
+                    isLoading={isLoading}
                     report={report}
                     assigneeStats={assigneeStats}
                     subtasks={subtasks}
-                    assigneeName={assignee?.name}
-                    userGid={assignee?.gid}
+                    userRole={userRole}
+                    onSignOut={handleSignOut}
+                    triggerAsChild
+                    triggerElement={
+                      <Button variant="outline" size="sm" asChild>
+                        <div className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900 focus:outline-none hover:cursor-pointer" aria-label="Open user menu">
+                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                            <span className="text-gray-600 text-xs font-medium">{user.email?.charAt(0).toUpperCase()}</span>
+                          </div>
+                          <span className="hidden sm:block text-right">
+                            <div className="font-medium text-gray-900">{user.email}</div>
+                            {userRole && (
+                              <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                <span>{userRole.role_name}</span>
+                                {currentDepartment && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{getDepartmentDisplayName(currentDepartment)}</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </span>
+                          <ChevronDown />
+                        </div>
+                      </Button>
+                    }
                   />
-
-                  {/* Sign out button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSignOut}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    ออกจากระบบ
-                  </Button>
                 </div>
               </div>
             ) : (
