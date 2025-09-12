@@ -215,17 +215,20 @@ export class AsanaReport {
    * Create AsanaReport instance from JSON data
    */
   static fromJSON(json: any): AsanaReport {
+    const teamUsers: Assignee[] = [];
     const sections = json.sections?.map((sectionData: any) => {
       const tasks = sectionData.tasks?.map((taskData: any) => {
         const assignee = taskData.assignee ? 
           new Assignee(taskData.assignee.gid, taskData.assignee.name, taskData.assignee.email) : 
           undefined;
-
         const subtasks = taskData.subtasks?.map((subtaskData: any) => {
           const subtaskAssignee = subtaskData.assignee ? 
             new Assignee(subtaskData.assignee.gid, subtaskData.assignee.name, subtaskData.assignee.email) : 
             undefined;
-
+          // check if assignee is already in teamUsers
+          if (subtaskAssignee && !teamUsers.some(user => user.gid === subtaskAssignee.gid)) {
+            teamUsers.push(subtaskAssignee);
+          }
           const followers = Array.isArray(subtaskData.followers) 
             ? subtaskData.followers.map((followerData: any) =>
                 new Follower(followerData.gid, followerData.name)
@@ -262,11 +265,6 @@ export class AsanaReport {
 
       return new Section(sectionData.gid, sectionData.name, tasks);
     }) || [];
-
-    const teamUsers = json.teamUsers?.map((userData: any) => 
-      new Assignee(userData.gid, userData.name, userData.email)
-    ) || [];
-
     const report = new AsanaReport(sections, teamUsers);
     if (json.lastUpdated) {
       report.lastUpdated = json.lastUpdated;
@@ -280,31 +278,7 @@ export class AsanaReport {
    * Now uses direct team users API instead of deriving from tasks for better performance
    */
   getAllAssignees(): Assignee[] {
-    // If we have team users from API, use them first
-    if (this.teamUsers.length > 0) {
-      return this.teamUsers;
-    }
-
-    // Fallback to task-based assignees if team users API is not available
-    const assigneeMap = new Map<string, Assignee>();
-
-    this.sections.forEach(section => {
-      section.tasks.forEach(task => {
-        // Add task assignee
-        if (task.assignee) {
-          assigneeMap.set(task.assignee.gid, task.assignee);
-        }
-
-        // Add subtask assignees
-        task.subtasks.forEach(subtask => {
-          if (subtask.assignee) {
-            assigneeMap.set(subtask.assignee.gid, subtask.assignee);
-          }
-        });
-      });
-    });
-
-    return Array.from(assigneeMap.values());
+    return this.teamUsers;
   }
 
   /**
