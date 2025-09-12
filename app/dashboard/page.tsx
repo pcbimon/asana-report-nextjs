@@ -357,17 +357,7 @@ export default function DashboardPage() {
         {/* Dashboard Content */}
         {selectedAssignee && assigneeStats ? (
           <div className="space-y-6">
-            {/* Filters Panel */}
-            <section>
-              <FiltersPanel
-                onFiltersChange={setFilters}
-                projects={availableProjects}
-                isLoading={isLoading}
-                defaultFilters={{
-                  assigneeType: permissions?.canSelectUsers ? 'all' : 'mine'
-                }}
-              />
-            </section>
+            
 
             {/* KPI Cards */}
             <section>
@@ -397,7 +387,17 @@ export default function DashboardPage() {
                 isLoading={isLoading}
               />
             </section>
-
+            {/* Filters Panel */}
+            <section>
+              <FiltersPanel
+                onFiltersChange={setFilters}
+                projects={availableProjects}
+                isLoading={isLoading}
+                defaultFilters={{
+                  assigneeType: permissions?.canSelectUsers ? 'all' : 'mine'
+                }}
+              />
+            </section>
             {/* Tasks Table */}
             <section>
               <CurrentTasksTable
