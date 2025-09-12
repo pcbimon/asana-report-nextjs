@@ -1,6 +1,6 @@
 /**
  * Weekly Task Summary Chart component
- * Line chart showing assigned vs completed tasks per week with team average
+ * Line chart showing assigned vs completed tasks per week with expected tasks target
  */
 
 'use client';
@@ -20,17 +20,20 @@ import {
 
 type ViewMode = 'week' | 'month';
 
+// Expected number of tasks per week (constant value)
+const EXPECTED_TASKS_PER_WEEK = 3;
+
 interface WeeklySummaryChartProps {
   weeklyData: WeeklyTaskData[];
   monthlyData: MonthlyTaskData[];
-  teamAverage?: number;
+  expectedTasks?: number;
   isLoading?: boolean;
 }
 
 export default function WeeklySummaryChart({ 
   weeklyData, 
   monthlyData,
-  teamAverage = 0, 
+  expectedTasks = EXPECTED_TASKS_PER_WEEK, 
   isLoading = false 
 }: WeeklySummaryChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
@@ -91,7 +94,7 @@ export default function WeeklySummaryChart({
 
   const assignedData = currentData.map(item => item.assigned);
   const completedData = currentData.map(item => item.completed);
-  const teamAverageData = teamAverage > 0 ? currentData.map(() => teamAverage) : [];
+  const expectedTasksData = expectedTasks > 0 ? currentData.map(() => expectedTasks) : [];
 
   const option = {
     title: {
@@ -125,7 +128,7 @@ export default function WeeklySummaryChart({
       }
     },
     legend: {
-      data: teamAverage > 0 ? ['Assigned', 'Completed', 'Team Average'] : ['Assigned', 'Completed'],
+      data: expectedTasks > 0 ? ['Assigned', 'Completed', 'Expected No Tasks'] : ['Assigned', 'Completed'],
       top: 30,
       textStyle: {
         color: '#6B7280'
@@ -222,10 +225,10 @@ export default function WeeklySummaryChart({
           }
         }
       },
-      ...(teamAverage > 0 ? [{
-        name: 'Team Average',
+      ...(expectedTasks > 0 ? [{
+        name: 'Expected No Tasks',
         type: 'line',
-        data: teamAverageData,
+        data: expectedTasksData,
         lineStyle: {
           color: '#F59E0B',
           width: 2,
