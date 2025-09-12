@@ -50,16 +50,6 @@ const ActionMenuContent: React.FC<ActionMenuContentProps> = ({
           ระบบจัดการ
         </DropdownMenuItem>
       )}
-
-      {/* Refresh - now cache-only */}
-      <DropdownMenuItem onClick={onRefresh} disabled={!!isLoading} className="hover:bg-gray-50 hover:cursor-pointer">
-        <RefreshCw
-          className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-        />
-        {isLoading ? "กำลังโหลด..." : "รีเฟรชจากแคช"}
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
       <ExportButtons
         report={report}
         assigneeStats={assigneeStats}
