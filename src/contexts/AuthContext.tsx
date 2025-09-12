@@ -218,19 +218,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session with timeout
     const getInitialSession = async () => {
       try {
-        // Set a timeout for the session request
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session request timeout')), 10000)
-        );
-        
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
-        
+        // Retry session retrieval with a per-attempt timeout in case Supabase is slow.
+        const maxAttempts = 3;
+        const initialDelayMs = 500;
+        const maxDelayMs = 4000;
+        const perAttemptTimeoutMs = 10000;
+
+        const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+        let attempt = 0;
+        let delay = initialDelayMs;
+        let lastError: any = null;
+        let session: any = null;
+
+        while (attempt < maxAttempts) {
+          attempt += 1;
+          try {
+            const sessionPromise = supabase.auth.getSession();
+            const result = await Promise.race([
+              sessionPromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Session request timeout')), perAttemptTimeoutMs)),
+            ]) as any;
+
+            session = result?.data?.session ?? null;
+            break;
+          } catch (err) {
+            lastError = err;
+            if (attempt >= maxAttempts) break;
+
+            const jitter = Math.floor(Math.random() * 200);
+            const waitMs = Math.min(delay, maxDelayMs) + jitter;
+            // eslint-disable-next-line no-console
+            console.warn(`getInitialSession attempt ${attempt} failed, retrying in ${waitMs}ms`, err);
+            // eslint-disable-next-line no-await-in-loop
+            await sleep(waitMs);
+            delay = Math.min(delay * 2, maxDelayMs);
+          }
+        }
+
         if (!mounted) return; // Component unmounted
-        
+
+        if (!session) {
+          console.error('Error loading initial session (all retries failed):', lastError);
+          if (mounted) {
+            setIsLoading(false);
+          }
+          return;
+        }
+
         const currentUser = session?.user ?? null;
         setUser(currentUser);
-        
+
         // Load user departments and role after setting user
         if (currentUser) {
           const defaultDepartment = await loadUserDepartments(currentUser);
@@ -238,15 +276,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await loadUserRole(currentUser, defaultDepartment?.department_id);
           }
         }
-        
+
         if (mounted) {
           setIsLoading(false);
         }
       } catch (error) {
-        console.error('Error loading initial session:', error);
+        console.error('Unexpected error loading initial session:', error);
         if (mounted) {
           setIsLoading(false);
-          // Still allow access without authentication
         }
       }
     };

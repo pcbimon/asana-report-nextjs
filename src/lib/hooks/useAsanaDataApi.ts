@@ -9,10 +9,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AsanaReport, Assignee } from '../../models/asanaReport';
 import { AssigneeStats, processAssigneeStats, calculateTeamAverages } from '../dataProcessor';
 import { 
-  saveReport, 
   loadReport, 
-  clearCache,
-  loadUserPreferences
+  getCacheInfo
 } from '../supabaseStorage';
 import { useAuth } from '../../contexts/AuthContext';
 import { userRoleService } from '../userRoleService';
@@ -48,10 +46,17 @@ export interface UseAsanaDataReturn {
   fetchData: () => Promise<void>;
   selectAssignee: (assigneeGid: string) => void;
   refreshData: () => Promise<void>;
+  
+  // Cache info
+  cacheInfo: {
+    exists: boolean;
+    ageMinutes: number;
+    lastUpdated: string;
+  } | null;
 }
 
 /**
- * Fetch complete report from API route
+ * Fetch complete report from API route (no longer used in read-only mode)
  */
 async function fetchReportFromApi(): Promise<AsanaReport> {
   const response = await fetch('/api/asana/report');
@@ -72,7 +77,7 @@ async function fetchReportFromApi(): Promise<AsanaReport> {
 }
 
 /**
- * Fetch complete report with streaming progress via SSE
+ * Fetch complete report with streaming progress via SSE (no longer used in read-only mode)
  */
 async function fetchReportWithProgress(
   onProgress: (progress: LoadingProgress) => void
@@ -149,7 +154,7 @@ async function fetchReportWithProgress(
 }
 
 /**
- * Test API connection via API route
+ * Test API connection via API route (no longer used in read-only mode)
  */
 async function testApiConnection(): Promise<boolean> {
   const response = await fetch('/api/asana/test-connection');
@@ -163,7 +168,7 @@ async function testApiConnection(): Promise<boolean> {
 }
 
 /**
- * Fetch team users via API route
+ * Fetch team users via API route (no longer used in read-only mode)
  */
 async function fetchTeamUsersFromApi(): Promise<Assignee[]> {
   const response = await fetch('/api/asana/team-users');
@@ -190,6 +195,11 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
+  const [cacheInfo, setCacheInfo] = useState<{
+    exists: boolean;
+    ageMinutes: number;
+    lastUpdated: string;
+  } | null>(null);
   
   // Get auth context for role-based filtering with department support
   const { user, userRole, permissions, currentDepartment } = useAuth();
@@ -230,100 +240,36 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
   
   const teamAverages = report ? calculateTeamAverages(report) : null;
 
-  const fetchFromApi = useCallback(async () => {
-    try {
-      console.log('Fetching fresh data from Asana API via server with streaming progress...');
-      
-      // Initialize progress
-      setLoadingProgress({ 
-        current: 0, 
-        total: 100, 
-        percentage: 0, 
-        status: 'เริ่มต้น...',
-        teamUsers: { loaded: 0, total: 0 },
-        sections: { loaded: 0, total: 0 },
-        tasks: { loaded: 0, total: 0 },
-        subtasks: { loaded: 0, total: 0 }
-      });
-      
-      // Use streaming fetch with real-time progress updates
-      const freshReport = await fetchReportWithProgress((progress) => {
-        setLoadingProgress(progress);
-      });
-      
-      // Update progress for caching
-      setLoadingProgress({ 
-        current: 95, 
-        total: 100, 
-        percentage: 95, 
-        status: 'บันทึกข้อมูลลงแคช...',
-        teamUsers: freshReport.teamUsers ? { loaded: freshReport.teamUsers.length, total: freshReport.teamUsers.length } : { loaded: 0, total: 0 },
-        sections: { loaded: freshReport.sections.length, total: freshReport.sections.length },
-        tasks: { 
-          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0), 
-          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0) 
-        },
-        subtasks: { 
-          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0),
-          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0)
-        }
-      });
-      
-      // Save to Supabase
-      await saveReport(freshReport);
-      setReport(freshReport);
-      
-      // Clear progress when done
-      setLoadingProgress({ 
-        current: 100, 
-        total: 100, 
-        percentage: 100, 
-        status: 'เสร็จสิ้น!',
-        teamUsers: freshReport.teamUsers ? { loaded: freshReport.teamUsers.length, total: freshReport.teamUsers.length } : { loaded: 0, total: 0 },
-        sections: { loaded: freshReport.sections.length, total: freshReport.sections.length },
-        tasks: { 
-          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0), 
-          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.length, 0) 
-        },
-        subtasks: { 
-          loaded: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0),
-          total: freshReport.sections.reduce((sum, s) => sum + s.tasks.reduce((taskSum, t) => taskSum + t.subtasks.length, 0), 0)
-        }
-      });
-      setTimeout(() => setLoadingProgress(null), 1000);
-      
-      console.log('Data fetched and cached successfully with streaming progress');
-    } catch (err) {
-      console.error('Error fetching from API:', err);
-      setLoadingProgress(null);
-      throw err;
-    }
-  }, []);
-
   const loadData = useCallback(async () => {
     try {
       setError(null);
       setIsLoading(true);
       setLoadingProgress(null);
 
-      // Try to load from Supabase cache first
+      // Only load from Supabase cache (no API calls)
+      console.log('Loading data from Supabase cache...');
       const cachedReport = await loadReport();
+      
       if (cachedReport) {
         setReport(cachedReport);
-        setIsLoading(false);
-        return;
+        console.log('Data loaded from cache successfully');
+      } else {
+        setError('ไม่พบข้อมูลในระบบ กรุณารอให้ระบบซิงค์ข้อมูลอัตโนมัติ หรือติดต่อผู้ดูแลระบบ');
+        console.log('No cached data found');
       }
 
-      // If no cache, fetch from API
-      await fetchFromApi();
+      // Load cache info
+      const info = await getCacheInfo();
+      setCacheInfo(info);
+      
     } catch (err) {
       console.error('Error loading data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลได้');
       setLoadingProgress(null);
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFromApi]);
+  }, []);
 
   // Load data on mount
   useEffect(() => {
@@ -344,17 +290,18 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
       setIsRefreshing(true);
       setLoadingProgress(null);
       
-      // Clear cache and fetch fresh data
-      await clearCache();
-      await fetchFromApi();
+      // Refresh data from cache only (no manual API calls)
+      console.log('Refreshing data from cache...');
+      await loadData();
+      
     } catch (err) {
       console.error('Error refreshing data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to refresh data');
+      setError(err instanceof Error ? err.message : 'ไม่สามารถรีเฟรชข้อมูลได้');
       setLoadingProgress(null);
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchFromApi]);
+  }, [loadData]);
 
   const selectAssignee = useCallback(async (assigneeGid: string) => {
     // Check if user has permission to select this assignee
@@ -392,6 +339,9 @@ export function useAsanaData(initialAssigneeGid?: string): UseAsanaDataReturn {
     fetchData,
     selectAssignee,
     refreshData,
+    
+    // Cache info
+    cacheInfo,
   };
 }
 

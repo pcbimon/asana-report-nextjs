@@ -43,7 +43,8 @@ export default function DashboardPage() {
     error,
     loadingProgress,
     refreshData,
-    selectAssignee
+    selectAssignee,
+    cacheInfo
   } = useAsanaData();
 
   // Filter state
@@ -288,6 +289,7 @@ export default function DashboardPage() {
         report={report}
         assigneeStats={assigneeStats}
         subtasks={filteredSubtasks}
+        cacheInfo={cacheInfo}
       />
 
       {/* Main Content */}
