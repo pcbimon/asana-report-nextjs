@@ -351,13 +351,12 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
   };
 
   return (
-    <DropdownMenuGroup>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <Download className="h-4 w-4 mr-2" />
-          <span>ส่งออกข้อมูล</span>
-        </DropdownMenuSubTrigger>
-        <DropdownMenuPortal>
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Download className="h-4 w-4 mr-2" />
+        <span>ส่งออกข้อมูล</span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
         <DropdownMenuSubContent className="bg-white">
           <DropdownMenuItem onClick={exportToPDF} disabled={!!isExporting}>
             <FileText className="h-4 w-4 mr-2" />
@@ -369,8 +368,7 @@ const ExportButtons: React.FC<ExportButtonsProps> = ({
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuPortal>
-      </DropdownMenuSub>
-    </DropdownMenuGroup>
+    </DropdownMenuSub>
   );
 };
 

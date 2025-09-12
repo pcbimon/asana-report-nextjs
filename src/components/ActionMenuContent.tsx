@@ -45,14 +45,14 @@ const ActionMenuContent: React.FC<ActionMenuContentProps> = ({
     <DropdownMenuContent align="end" className="w-56 bg-white">
       {/* Admin link */}
       {userRole?.role_level === UserRoleLevel.ADMIN && (
-        <DropdownMenuItem onClick={() => router.push("/admin")}>
+        <DropdownMenuItem onClick={() => router.push("/admin")} className="hover:bg-gray-50 hover:cursor-pointer">
           <Settings className="h-4 w-4 mr-2" />
           ระบบจัดการ
         </DropdownMenuItem>
       )}
 
       {/* Refresh */}
-      <DropdownMenuItem onClick={onRefresh} disabled={!!isLoading}>
+      <DropdownMenuItem onClick={onRefresh} disabled={!!isLoading} className="hover:bg-gray-50 hover:cursor-pointer">
         <RefreshCw
           className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
         />
@@ -72,6 +72,7 @@ const ActionMenuContent: React.FC<ActionMenuContentProps> = ({
 
       {/* Sign out */}
       <DropdownMenuItem
+        className="hover:bg-gray-50 hover:cursor-pointer"
         onClick={async () => {
           if (onSignOut) await onSignOut();
         }}
